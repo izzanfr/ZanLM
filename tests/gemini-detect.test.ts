@@ -310,6 +310,14 @@ test("the JSON Schema for Gemini matches the Zod schema and stays simple", () =>
     if (typeof node !== "object" || node === null || Array.isArray(node)) return;
     for (const [key, value] of Object.entries(node)) {
       if (!inProperties) assert.ok(allowed.has(key), `unsupported keyword: ${key}`);
+      // A large maxItems made Gemini reject every request with 400 (measured
+      // 2026-09-22). Only the fixed 4-number box may carry one.
+      if (!inProperties && key === "maxItems") {
+        assert.ok(
+          typeof value === "number" && value <= 4,
+          `maxItems ${String(value)} is too large`,
+        );
+      }
       visit(value, !inProperties && key === "properties");
     }
   };

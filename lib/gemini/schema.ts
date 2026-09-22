@@ -118,13 +118,20 @@ export function parseDetection(text: string): ParseResult {
 const enumProperty = (values: readonly string[]) => ({ type: "string", enum: [...values] });
 const colorProperty = { type: "string", pattern: "^#[0-9A-Fa-f]{6}$" };
 
-/** JSON Schema sent as `responseJsonSchema`. Kept flat and small on purpose. */
+/**
+ * JSON Schema sent as `responseJsonSchema`. Kept flat and small on purpose.
+ *
+ * The arrays of blocks and runs carry no maxItems. Measured on 2026-09-22:
+ * with maxItems 200 and 50 Gemini rejects the whole request with 400
+ * "Request contains an invalid argument", and without them it is accepted.
+ * Large caps make the constrained decoder too big. The limits still hold,
+ * because Zod enforces MAX_BLOCKS and MAX_RUNS on every answer.
+ */
 export const RESPONSE_JSON_SCHEMA = {
   type: "object",
   properties: {
     blocks: {
       type: "array",
-      maxItems: MAX_BLOCKS,
       items: {
         type: "object",
         properties: {
@@ -145,7 +152,6 @@ export const RESPONSE_JSON_SCHEMA = {
           confident: { type: "boolean" },
           runs: {
             type: "array",
-            maxItems: MAX_RUNS,
             items: {
               type: "object",
               properties: {

@@ -116,7 +116,7 @@ Slide index, model id, outcome, latency, token counts from `usageMetadata`, and 
 }
 ```
 
-Limits: at most 200 blocks, 4,000 characters per block, and 2 to 50 runs per block.
+Limits: at most 200 blocks, 4,000 characters per block, and 2 to 50 runs per block. These are enforced by Zod only. **The JSON Schema sent to Gemini must not carry them as `maxItems`:** measured on 2026-09-22, `maxItems` 200 and 50 made Gemini reject every request with 400 "Request contains an invalid argument", and the same request without them was accepted. A test keeps any array cap in that schema at 4 or less.
 
 **Validation.** The block without `runs` is validated strictly; if that fails, the response counts as invalid (section 3.2). `runs` is checked on its own, after the block has passed: every run must be well formed, and the runs' `text` joined in order must equal the block's `text` exactly, with no trimming or normalization. If any of that fails, `runs` is dropped and the block keeps its `text` and its block-level style. So a formatting mistake can never cost the text. This is a Zod `.transform` on the block. The number of dropped `runs` is counted per slide, reported by `test:detect`, and logged as a count only.
 
@@ -218,6 +218,8 @@ Following `docs/plan.md`:
 ### 6.2 Choosing the model
 
 `npm run test:detect -- --model <id>` runs every slide against exactly that model, with no fallback, so two runs compare like for like. `--model` can be given more than once (for example a Flash-Lite id and a Flash id); the report then puts CER, missed and extra blocks, IoU, tokens and latency per model side by side for the same slides. Without `--model`, the tool uses the chain from the environment, like the app. The cache key already includes the model, so each model's answers are cached separately.
+
+`--patience <n>` (default 3) is for measuring only: a slide that fails as "unavailable" because the model is overloaded is tried again after 20 seconds, up to n times, and every extra call is counted. The app keeps the plain policy. `npm run gemini:check` lists the models the key can use, and says whether each `GEMINI_MODEL*` variable is set and available, without printing values.
 
 `--media-resolution <default|low|medium|high>` works the same way and can also be repeated. Every combination of the given models and resolutions runs on the same slides and appears side by side in the report, for example Flash-Lite and Flash, each at default and high.
 
