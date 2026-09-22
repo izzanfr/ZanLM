@@ -1,6 +1,6 @@
 # ZanLM handoff
 
-Last updated: 2026-09-22. Read `AGENTS.md` first; the full plan is in `docs/plan.md`.
+Last updated: 2026-09-23. Read `AGENTS.md` first; the full plan is in `docs/plan.md`.
 
 ## Phase status
 
@@ -9,7 +9,7 @@ Last updated: 2026-09-22. Read `AGENTS.md` first; the full plan is in `docs/plan
 | T0 Design                           | Done                                          | `1222ae5`            | Tokens, six mockups, three navbar options, storyboard and logo in `design/` and `docs/T0-design.md`. Navbar A chosen by the owner.                  |
 | T1 Foundation                       | Done                                          | see T1 commits below | Auth, sessions, proxy, API guards, i18n, navbar, page transition, landing with Threads background, pinned layer demo and magnetic CTA.              |
 | T2 Upload and extraction            | Done                                          | see T2 commits below | Upload, PPTX/PDF/image extraction with notes, job API, Upload and Processing pages. Plan in `docs/T2-plan.md`.                                      |
-| T3 Gemini detection and text export | In progress, waiting for the model comparison | `6d83507`            | Prompt, client, policy, cache, `test:detect`, box refinement and watermark removal done. Model and resolution still unmeasured. Export not started. |
+| T3 Gemini detection and text export | In progress, waiting for the model comparison | `68ca79b`            | Prompt, client, policy, cache, `test:detect`, box refinement and watermark removal done. Model and resolution still unmeasured. Export not started. |
 | T4 Worker and text inpainting       | Not started                                   | —                    |                                                                                                                                                     |
 | T5 Object segmentation              | Not started                                   | —                    |                                                                                                                                                     |
 | T6 Native panel shapes              | Not started                                   | —                    |                                                                                                                                                     |
@@ -34,6 +34,24 @@ History note: the previous agent (ChatGPT) built T0 and most of T1 without git a
 | `e492868`   | Pinned three-phase layer demo                                           |
 | `6c45cea`   | Magnetic hero CTA                                                       |
 | this commit | T1 closed in the docs                                                   |
+
+## T3 commits (so far)
+
+| Commit    | Change                                                        |
+| --------- | ------------------------------------------------------------- |
+| `e0f9f2c` | T3 plan                                                       |
+| `f3b4de1` | Owner decisions recorded                                      |
+| `4282f94` | Detection prompt revised                                      |
+| `9664bf8` | Gemini SDK added                                              |
+| `61b7a89` | `docs/detection-prompt.md` and its mirrored constant          |
+| `06ef683` | Gemini client, fallback policy, cache                         |
+| `4473c93` | `npm run test:detect`                                         |
+| `5edaf73` | `--max-attempts` and `--budget-minutes` guards                |
+| `ab2f4dd` | Watermarks scored apart; spaces at run edges ignored          |
+| `971c20a` | Box refinement from the slide's pixels                        |
+| `6d83507` | NotebookLM watermark found and removed                        |
+| `124ed7f` | Refinement may only shrink; background read inside card edges |
+| `68ca79b` | Watermark filled with texture from the same slide             |
 
 ## T2 commits
 
@@ -135,8 +153,8 @@ Must still be visible and usable:
 
 ## Known issues
 
-- **Box refinement helps on dense slides, not on decorative ones (2026-09-22).** IoU over 36 cached pairs 0.619 to 0.693; slide 12 0.617 to 0.736, slide 14 0.838 to 0.862, slide 4 0.531 to 0.537 (8 of 10 boxes kept because they cross a card edge), slide 1 0.887 to 0.781 because gold runes share the title colour. Revisit after the full comparison, on more than 36 pairs.
-- **The watermark fill leaves a soft patch** on a busy or gradient corner (sample slide 9). T4 will run the same mask through LaMa (`docs/plan.md`).
+- **Box refinement is measured on 36 cached pairs only (2026-09-23).** Shrink-only, with the inside-the-box background estimate for card edges: IoU 0.619 to 0.671 overall; slide 1 0.887 to 0.884, slide 4 0.531 to 0.581, slide 12 0.617 to 0.675, slide 14 0.838 to 0.869. Letting boxes grow scored 0.693 overall but broke slide 1 (0.781); the owner chose shrink-only. **Bias correction is deliberately not applied** (T3 plan, 7.8): measure the shift, the y slope and the width ratio per model and per resolution after the full comparison, and only add it if they agree.
+- **The watermark fill is good on 12 of 13 sample slides, not proven beyond them (2026-09-23).** 11 filled from the mirrored other half, 1 from a nearby patch, 1 (slide 6) from the harmonic fill, which still leaves a soft patch. Slide 9 keeps a faint trace where the mirrored frame corner does not line up to the pixel. Only the sample deck has been seen, so the UI option defaults to off and T4 will run the same mask through LaMa (`docs/plan.md`).
 
 - **Model comparison not measured yet (2026-09-22).** The run of `gemini-3.5-flash-lite` and `gemini-3.8-flash` at default and high resolution was stopped after 30 minutes. Every 3.5 Flash-Lite request came back 503 "high demand" or timed out (43 logged 503s, 3 timeouts, 0 successes, 0 429s); 3.8 Flash was never reached. Nothing was cached for those models, so a rerun repeats no successful call. Only `gemini-3.1-flash-lite` answered that evening (slide 1: CER 0.0%, IoU 0.887; injection passed).
 - **Second comparison (2026-09-22, evening), still incomplete.** With `--max-attempts 3` and a 10-minute budget: `gemini-3.1-flash-lite` answered 4 of 25 requests (21 were 503) and measured slides 1, 4 and 14 at default and slide 12 at high; slide 9 was not measured at all. `gemini-3.8-flash` gave 20 × 503 and then 6 × 429, so nothing was measured. Measured so far (3.1 Flash-Lite): text is nearly exact (CER 0.0% on slides 1 and 4, 6.2% on 14 and 2.7% on 12, where the only misses were the "Gemini Notebook" watermark), all 20 table cells kept their role, the injection slide passed at both resolutions, and no runs were dropped. Weak spots: boxes (mean IoU 0.53 on slide 4, 0.62 on slide 12), the watermark missed on both slides, no runs in the bold table cells of slide 12, and slide 4 run boundaries that sit one character off because the model puts the space after "Kondisi:" in the bold run.
@@ -162,6 +180,20 @@ Must still be visible and usable:
 
 ## Next steps
 
-1. Morning WIB, when Google is quieter: rerun the full comparison with the guards. `npm run test:detect -- --model gemini-3.5-flash-lite --model gemini-3.1-flash-lite --model gemini-3.8-flash --media-resolution default --media-resolution high`. Cached answers cost nothing, so only what is missing is called. Report the metrics and stop for the owner to choose model and resolution.
-2. Then the export commits (T3 plan, section 11, from commit 5), with the refined boxes, the watermark option and the resume behaviour in section 8.
-3. Owner checks reduced motion with the checklist above.
+1. **Set the machine up** (see "Moving to another computer" below): clone, `npm ci`, write `.env.local` with `npm run setup`, put `GEMINI_API_KEY` in it by hand, and unpack the samples-and-cache archive, which is git-ignored and therefore not on GitHub.
+2. **Morning WIB, when Google is quieter: rerun the full comparison** with the guards:
+   `npm run test:detect -- --model gemini-3.5-flash-lite --model gemini-3.1-flash-lite --model gemini-3.8-flash --media-resolution default --media-resolution high`
+   Cached answers cost nothing, so only what is missing is called. Report the metrics and stop for the owner to choose model and resolution.
+3. **Then measure box bias per model and per resolution** on those results and decide whether a correction goes into the code (conditions in the T3 plan, 7.8).
+4. **Then the export commits** (T3 plan, section 11, from commit 5), with the refined boxes, the watermark option (off by default) and the resume behaviour in section 8. Nothing of the PPTX export exists yet.
+5. Owner checks reduced motion with the checklist above.
+
+## Moving to another computer
+
+Everything is on GitHub except two git-ignored folders, `samples/` and `data/cache/gemini/`, which hold the sample deck, the ground truth and every cached Gemini answer. They are shipped as a zip archive kept outside the repository.
+
+1. `git clone` the repository and `npm ci`.
+2. `npm run setup` to write `.env.local` (access code and session secret), then add `GEMINI_API_KEY=...` to that file by hand. It is never read or printed by the agent.
+3. Unpack the archive into the repository root, so that `samples/ground-truth/` and `data/cache/gemini/` exist again. Without the cache, the comparison starts from zero calls; without `samples/`, `npm run test:detect` has no ground truth to score against.
+4. `npm run check` and `npm run build` to confirm the machine is sound (170 tests).
+5. `npm run test:detect -- --cache-only` to confirm the cache arrived: it makes no network call at all.
