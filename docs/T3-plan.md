@@ -389,21 +389,45 @@ The mark is removed in T3, not T4, and the detection prompt is unchanged.
   that line in the same place, and only slides matching the deck-wide
   position are touched. A deck with real content in that corner is left
   alone; on the sample deck a false match on a textured corner was refused.
-- **Filled from the pixels around it**, never a flat rectangle of colour: the
-  mask holds the letters and, on light slides, the flat pill behind them
-  (flooded by its own colour, so an ornament touching it stays), and those
-  pixels are filled harmonically from their neighbours with grain from a
-  nearby patch. Pixels outside the mask keep their exact values.
+- **Filled with texture from the same slide** (owner decision 2026-09-22,
+  after the first, smearing fill was rejected). The mask is unchanged: the
+  letters and, on light slides, the flat pill behind them, flooded by its own
+  colour so an ornament touching it stays. What fills them is chosen in this
+  order:
+  1. **The slide mirrored horizontally**, the bottom-left corner in the
+     bottom-right one's place, allowed a few pixels of play to line up. A
+     deck like this is symmetrical, so this is the only source that can bring
+     back an ornament the mark covered.
+  2. **The most similar patch just around the mark**, searched a few mark
+     widths left of and above it.
+  3. **The harmonic fill**, as a last resort.
+     A candidate is only taken when its _detail_ matches the real background
+     still visible around the mask (median difference of each pixel against its
+     own surroundings, at most 6 levels); a plain colour difference would reject
+     a patch from a lighter part of the same gradient, which is exactly what the
+     blend below corrects anyway.
+- **Pasted without a seam**: the difference between patch and slide at the
+  mask's rim is spread smoothly across the masked area and added to the patch
+  (a harmonic membrane, the same relaxation as the fill), so lighting and
+  colour meet exactly while the patch's own detail is kept. The blend fades
+  in over the two outermost mask pixels, which lie on background, not on the
+  mark. Pixels outside the mask keep their exact values.
+- **Measured on the sample deck** (13 slides carrying the mark): 11 filled
+  from the mirror, 1 from a nearby patch, 1 (slide 6) from the harmonic fill.
+  Slide 12's navy corner and slide 9's gold ornament both come back cleanly;
+  slide 9 keeps a faint trace where the mirrored frame corner does not line
+  up to the pixel.
 - **The original slide image is not modified.** The cleaned copy is the
   export background; `slides/NNN.png` stays as extracted.
 - **Blocks Gemini labels `watermark` are not exported** as text boxes while
   the option is on (`exportableBlocks`).
-- **UI option "Remove NotebookLM watermark", on by default** (section 8).
+- **UI option "Remove NotebookLM watermark", off by default** (section 8),
+  the owner's decision until the fill has been seen on more decks.
 - **Metrics keep watermarks apart** from the content CER (section 6.3), so
   this never flatters the text numbers.
-- **Still visible after the simple fill:** a soft patch where the mark was,
-  clearest on a busy or gradient background (sample slide 9). See the T4 note
-  in `docs/plan.md`.
+- **What is left:** on a slide where no source matches, the harmonic fill
+  still leaves a soft patch (sample slide 6). See the T4 note in
+  `docs/plan.md`: LaMa runs the same mask.
 
 ### 7.7 Known trade-offs
 
@@ -415,7 +439,7 @@ The mark is removed in T3, not T4, and the detection prompt is unchanged.
 
 On the Processing page, after extraction finishes:
 
-- A **Convert** button, with the cover-patch and drop-watermark checkboxes (section 7.2) and one line of disclosure above it: "Slide images are sent to Google Gemini (free tier) for text detection. Google may use free-tier content to improve its products." The line is there because this is the first phase where anything leaves the laptop.
+- A **Convert** button, with the cover-patch and drop-watermark checkboxes (section 7.2), a **"Remove NotebookLM watermark"** checkbox (section 7.9, off by default) and one line of disclosure above it: "Slide images are sent to Google Gemini (free tier) for text detection. Google may use free-tier content to improve its products." The line is there because this is the first phase where anything leaves the laptop.
 - Per-slide status:
   - Queued, Detecting, Done, From cache, Skipped (mixed), Failed with a reason.
   - A live region announces the counts.

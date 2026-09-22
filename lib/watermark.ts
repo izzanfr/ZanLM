@@ -464,9 +464,301 @@ export function fillMasked(image: RawImage, mask: Uint8Array): RawImage {
   return { ...image, data: out };
 }
 
-/** Removes the mark from one slide: its mask, then the harmonic fill. Returns a copy. */
-export function removeMark(image: RawImage, letters: Rect, area: Rect): RawImage {
-  return fillMasked(image, markMask(image, letters, area));
+/** How a slide's mark was filled, for the report and the tests. */
+export type FillMethod = "mirror" | "patch" | "harmonic";
+
+export type FillResult = { image: RawImage; method: FillMethod; score: number };
+
+export const FILL_DEFAULTS = {
+  /** Pixels of real background kept around the mask when candidates are judged. */
+  margin: 10,
+  /** Pixels over which a pasted patch fades in at the mask's rim. */
+  feather: 2,
+  /** Mean per-channel difference on that background a candidate may show. */
+  accept: 6,
+  /** Pixels of play allowed when the mirrored half is lined up. */
+  align: 6,
+  /** Step of the sideways search, in pixels. */
+  step: 2,
+};
+
+type Source = { dx: number; dy: number; mirror: boolean };
+
+/**
+ * Copies texture from elsewhere on the same slide over the masked pixels.
+ *
+ * Decks like this one are symmetrical, so the first candidate is the slide
+ * mirrored horizontally: the bottom-left corner in the bottom-right one's
+ * place. Failing that, the most similar patch just around the mark is used.
+ * A candidate is only accepted when it matches the real background still
+ * visible around the mask; otherwise the harmonic fill takes over. What is
+ * pasted is levelled to that background's brightness and fades in over a few
+ * pixels, so no seam is left behind.
+ */
+export function fillFromTexture(
+  image: RawImage,
+  mask: Uint8Array,
+  options = FILL_DEFAULTS,
+): FillResult {
+  const { width: W, height: H, channels } = image;
+  const box = maskBox(mask, W, H);
+  if (!box)
+    return { image: { ...image, data: Uint8Array.from(image.data) }, method: "patch", score: 0 };
+
+  const region = {
+    x0: Math.max(0, box.x0 - options.margin),
+    y0: Math.max(0, box.y0 - options.margin),
+    x1: Math.min(W, box.x1 + options.margin),
+    y1: Math.min(H, box.y1 + options.margin),
+  };
+  const read = (x: number, y: number, c: number) =>
+    image.data[(y * W + x) * channels + Math.min(c, channels - 1)];
+  const at = (source: Source, x: number, y: number) =>
+    source.mirror
+      ? { x: W - 1 - x + source.dx, y: y + source.dy }
+      : { x: x + source.dx, y: y + source.dy };
+
+  /**
+   * How much detail a pixel carries over its surroundings: what the blend
+   * below keeps from the patch. Judging candidates on this and not on plain
+   * colour lets a patch from a lighter part of the same gradient win, which
+   * is right, because the blend levels that difference out anyway.
+   */
+  const detail = (x: number, y: number, c: number) => {
+    let sum = 0;
+    let samples = 0;
+    for (let dy = -2; dy <= 2; dy += 1) {
+      for (let dx = -2; dx <= 2; dx += 1) {
+        const sx = Math.min(Math.max(x + dx, 0), W - 1);
+        const sy = Math.min(Math.max(y + dy, 0), H - 1);
+        sum += read(sx, sy, c);
+        samples += 1;
+      }
+    }
+    return read(x, y, c) - sum / samples;
+  };
+
+  /**
+   * How well a candidate matches the detail of the real background still
+   * visible around the mask.
+   */
+  const judge = (source: Source): { score: number } | null => {
+    const residuals: number[] = [];
+    for (let y = region.y0; y < region.y1; y += 1) {
+      for (let x = region.x0; x < region.x1; x += 1) {
+        if (mask[y * W + x]) continue;
+        const from = at(source, x, y);
+        if (from.x < 0 || from.y < 0 || from.x >= W || from.y >= H) return null;
+        if (mask[from.y * W + from.x]) return null;
+        for (let c = 0; c < 3; c += 1)
+          residuals.push(Math.abs(detail(from.x, from.y, c) - detail(x, y, c)));
+      }
+    }
+    if (residuals.length < 300) return null;
+    // The median, not the mean: a gold frame line crossing the region can
+    // never be matched by a patch from elsewhere, and it is not going to be
+    // painted over either, so those few pixels must not decide.
+    residuals.sort((a, b) => a - b);
+    return { score: residuals[Math.floor(residuals.length / 2)] };
+  };
+
+  let best: { source: Source; score: number; method: FillMethod } | null = null;
+  /** The closest match seen, accepted or not, so a refusal can be reported. */
+  let nearest: number | null = null;
+  // The mirror, allowed a few pixels of play: a deck is symmetrical by design
+  // but rarely to the pixel, and the ornament under the mark is only ever
+  // recoverable from its twin on the other side.
+  let mirror: { source: Source; score: number } | null = null;
+  for (let dy = -options.align; dy <= options.align; dy += 1) {
+    for (let dx = -options.align; dx <= options.align; dx += 1) {
+      const source = { dx, dy, mirror: true };
+      const judged = judge(source);
+      if (judged && (!mirror || judged.score < mirror.score)) mirror = { source, ...judged };
+    }
+  }
+  if (mirror) nearest = mirror.score;
+  if (mirror && mirror.score <= options.accept) best = { ...mirror, method: "mirror" };
+
+  if (!best) {
+    // The neighbourhood of the mark, a few mark-widths left and above it.
+    const w = box.x1 - box.x0;
+    const h = box.y1 - box.y0;
+    for (let dy = -4 * h; dy <= 2 * h; dy += options.step) {
+      for (let dx = -6 * w; dx <= 2 * w; dx += options.step) {
+        if (Math.abs(dx) < w / 2 && Math.abs(dy) < h / 2) continue;
+        const judged = judge({ dx, dy, mirror: false });
+        if (!judged) continue;
+        if (nearest === null || judged.score < nearest) nearest = judged.score;
+        if (!best || judged.score < best.score)
+          best = { source: { dx, dy, mirror: false }, ...judged, method: "patch" };
+      }
+    }
+    if (best && best.score > options.accept) best = null;
+  }
+
+  if (!best) {
+    const harmonic = fillMasked(image, mask);
+    return { image: harmonic, method: "harmonic", score: nearest ?? Infinity };
+  }
+
+  const source = best.source;
+  const patch = (x: number, y: number, c: number): number | null => {
+    const from = at(source, x, y);
+    if (from.x < 0 || from.y < 0 || from.x >= W || from.y >= H) return null;
+    return read(from.x, from.y, c);
+  };
+  const out = Uint8Array.from(image.data);
+  const alpha = feather(mask, W, H, options.feather);
+  const membrane = solveMembrane(image, mask, patch, box, options.feather);
+  for (let y = box.y0; y < box.y1; y += 1) {
+    for (let x = box.x0; x < box.x1; x += 1) {
+      const weight = alpha[y * W + x];
+      if (!weight) continue;
+      for (let c = 0; c < Math.min(3, channels); c += 1) {
+        const pasted = patch(x, y, c);
+        if (pasted === null) continue;
+        const index = ((y - box.y0) * (box.x1 - box.x0) + (x - box.x0)) * 3 + c;
+        const mixed = read(x, y, c) * (1 - weight) + (pasted + membrane[index]) * weight;
+        out[(y * W + x) * channels + c] = Math.max(0, Math.min(255, Math.round(mixed)));
+      }
+    }
+  }
+  return { image: { ...image, data: out }, method: best.method, score: best.score };
+}
+
+/**
+ * The correction that makes a pasted patch meet the slide without a seam.
+ *
+ * On the pixels just outside the mask the patch is wrong by a known amount;
+ * that difference is spread smoothly across the masked area (a harmonic
+ * membrane, the same relaxation the harmonic fill uses) and added to the
+ * patch. Lighting and colour then match at the rim while the patch's own
+ * detail, an ornament for instance, is kept.
+ */
+function solveMembrane(
+  image: RawImage,
+  mask: Uint8Array,
+  patch: (x: number, y: number, c: number) => number | null,
+  box: Rect,
+  rounds: number,
+): Float32Array {
+  const { width: W, height: H, channels } = image;
+  const w = box.x1 - box.x0;
+  const h = box.y1 - box.y0;
+  const field = new Float32Array(w * h * 3);
+  const read = (x: number, y: number, c: number) =>
+    image.data[(y * W + x) * channels + Math.min(c, channels - 1)];
+  const difference = (x: number, y: number, c: number) => {
+    const pasted = patch(x, y, c);
+    return pasted === null ? 0 : read(x, y, c) - pasted;
+  };
+  const valueAt = (x: number, y: number, c: number) => {
+    if (x < 0 || y < 0 || x >= W || y >= H) return 0;
+    if (mask[y * W + x]) {
+      if (x < box.x0 || y < box.y0 || x >= box.x1 || y >= box.y1) return 0;
+      return field[((y - box.y0) * w + (x - box.x0)) * 3 + c];
+    }
+    return difference(x, y, c); // the rim: the correction the slide asks for
+  };
+  const iterations = Math.max(60, 2 * Math.max(w, h), rounds);
+  for (let round = 0; round < iterations; round += 1) {
+    for (let y = box.y0; y < box.y1; y += 1) {
+      for (let x = box.x0; x < box.x1; x += 1) {
+        if (!mask[y * W + x]) continue;
+        for (let c = 0; c < 3; c += 1) {
+          const sum =
+            valueAt(x - 1, y, c) +
+            valueAt(x + 1, y, c) +
+            valueAt(x, y - 1, c) +
+            valueAt(x, y + 1, c);
+          field[((y - box.y0) * w + (x - box.x0)) * 3 + c] = sum / 4;
+        }
+      }
+    }
+  }
+  return field;
+}
+
+function maskBox(mask: Uint8Array, W: number, H: number): Rect | null {
+  let x0 = W;
+  let y0 = H;
+  let x1 = -1;
+  let y1 = -1;
+  for (let y = 0; y < H; y += 1) {
+    for (let x = 0; x < W; x += 1) {
+      if (!mask[y * W + x]) continue;
+      x0 = Math.min(x0, x);
+      y0 = Math.min(y0, y);
+      x1 = Math.max(x1, x + 1);
+      y1 = Math.max(y1, y + 1);
+    }
+  }
+  return x1 < 0 ? null : { x0, y0, x1, y1 };
+}
+
+/**
+ * 1 deep inside the mask, fading to 0 at its rim, over `width` pixels. The
+ * fade runs inwards: pixels outside the mask, an ornament touching it for
+ * instance, keep their exact values, and the pasted patch still has no hard
+ * edge. The mask already reaches two pixels past the letters, so the faded
+ * rim sits on background, not on the mark.
+ */
+function feather(mask: Uint8Array, W: number, H: number, width: number): Float32Array {
+  const alpha = new Float32Array(W * H);
+  const depth = new Int32Array(W * H); // rings from the rim, 0 outside the mask
+  let front: number[] = [];
+  for (let y = 0; y < H; y += 1) {
+    for (let x = 0; x < W; x += 1) {
+      const index = y * W + x;
+      if (!mask[index]) continue;
+      const rim =
+        x === 0 ||
+        y === 0 ||
+        x === W - 1 ||
+        y === H - 1 ||
+        !mask[index - 1] ||
+        !mask[index + 1] ||
+        !mask[index - W] ||
+        !mask[index + W];
+      if (rim) {
+        depth[index] = 1;
+        front.push(index);
+      }
+    }
+  }
+  for (let ring = 2; front.length > 0; ring += 1) {
+    const next: number[] = [];
+    for (const index of front) {
+      const x = index % W;
+      const y = (index - x) / W;
+      for (const [nx, ny] of [
+        [x - 1, y],
+        [x + 1, y],
+        [x, y - 1],
+        [x, y + 1],
+      ]) {
+        if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+        const at = ny * W + nx;
+        if (!mask[at] || depth[at]) continue;
+        depth[at] = ring;
+        next.push(at);
+      }
+    }
+    front = next;
+  }
+  for (let index = 0; index < alpha.length; index += 1) {
+    if (!mask[index]) continue;
+    alpha[index] = Math.min(1, depth[index] / Math.max(1, width));
+  }
+  return alpha;
+}
+
+/**
+ * Removes the mark from one slide: its mask, then texture from elsewhere on
+ * the same slide, with the harmonic fill as the last resort. Returns a copy.
+ */
+export function removeMark(image: RawImage, letters: Rect, area: Rect): FillResult {
+  return fillFromTexture(image, markMask(image, letters, area));
 }
 
 /**

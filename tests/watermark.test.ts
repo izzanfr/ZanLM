@@ -4,7 +4,9 @@ import type { RawImage } from "../lib/box-refine.ts";
 import {
   decideForDeck,
   exportableBlocks,
+  fillFromTexture,
   fillMasked,
+  FILL_DEFAULTS,
   findMark,
   markMask,
   removeMark,
@@ -151,7 +153,7 @@ test("filling removes the mark and leaves the original untouched", () => {
   assert.ok(found);
   const decision = decideForDeck([toRelative(found, image), toRelative(found, image)]);
   assert.ok(decision.area);
-  const cleaned = removeMark(image, found, toPixelRect(decision.area, image));
+  const cleaned = removeMark(image, found, toPixelRect(decision.area, image)).image;
   // The input is not modified.
   assert.equal(Buffer.compare(Buffer.from(image.data), before), 0);
   // Nothing bright is left where the mark was.
@@ -166,7 +168,7 @@ test("the light pill goes too, not only the letters", () => {
   const found = findMark(image);
   assert.ok(found);
   const decision = decideForDeck([toRelative(found, image), toRelative(found, image)]);
-  const cleaned = removeMark(image, found, toPixelRect(decision.area!, image));
+  const cleaned = removeMark(image, found, toPixelRect(decision.area!, image)).image;
   const stats = regionStats(cleaned, 1262, 740, 1374, 766);
   assert.ok(
     Math.abs(stats.mean - 172) < 12,
@@ -182,12 +184,53 @@ test("a textured background keeps its grain instead of a flat patch", () => {
   assert.ok(found);
   const decision = decideForDeck([toRelative(found, image), toRelative(found, image)]);
   const rect = toPixelRect(decision.area!, image);
-  const cleaned = removeMark(image, found, rect);
+  const cleaned = removeMark(image, found, rect).image;
   const inside = regionStats(cleaned, found.x0, found.y0, found.x1, found.y1);
   const outside = regionStats(image, rect.x0 - 120, rect.y0, rect.x0 - 20, rect.y1);
   assert.ok(Math.abs(inside.mean - outside.mean) < 8, "same brightness as around it");
   assert.ok(inside.deviation > 0.4 * outside.deviation, "some grain survives");
   assert.ok(inside.max < 200, "no letter left");
+});
+
+test("the mirrored other corner brings back an ornament the mark covered", () => {
+  // A deck laid out symmetrically: the same bar low on the left and the right.
+  const clean = slide([178, 172, 165], 3);
+  for (const [x0, x1] of [
+    [40, 260],
+    [W - 260, W - 40],
+  ]) {
+    fill(clean, x0, 744, x1, 752, [196, 164, 74]);
+  }
+  const image: RawImage = { ...clean, data: Uint8Array.from(clean.data) };
+  mark(image, [40, 40, 40], [220, 215, 205]);
+  const found = findMark(image);
+  assert.ok(found);
+  const decision = decideForDeck([toRelative(found, image), toRelative(found, image)]);
+  const result = removeMark(image, found, toPixelRect(decision.area!, image));
+  assert.equal(result.method, "mirror");
+  // The piece of bar the pill covered is back, close to the real thing.
+  let worst = 0;
+  for (let x = W - 200; x < W - 60; x += 1) {
+    for (let y = 744; y < 752; y += 1) {
+      const offset = (y * W + x) * 3;
+      worst = Math.max(worst, Math.abs(result.image.data[offset] - clean.data[offset]));
+    }
+  }
+  assert.ok(worst < 40, `worst difference ${worst}`);
+});
+
+test("with nothing on the slide that matches, the harmonic fill takes over", () => {
+  const image = slide([120, 110, 100], 8);
+  mark(image, [250, 250, 250]);
+  const found = findMark(image);
+  assert.ok(found);
+  const decision = decideForDeck([toRelative(found, image), toRelative(found, image)]);
+  const mask = markMask(image, found, toPixelRect(decision.area!, image));
+  // No candidate can match perfectly, so nothing is accepted.
+  const result = fillFromTexture(image, mask, { ...FILL_DEFAULTS, accept: 0, step: 12 });
+  assert.equal(result.method, "harmonic");
+  const stats = regionStats(result.image, found.x0, found.y0, found.x1, found.y1);
+  assert.ok(stats.max < 200, `brightest pixel left ${stats.max}`);
 });
 
 test("a gradient is continued across the filled area", () => {
@@ -217,7 +260,7 @@ test("an ornament inside the clean area is left untouched", () => {
   const decision = decideForDeck([toRelative(found, image), toRelative(found, image)]);
   const rect = toPixelRect(decision.area!, image);
   assert.ok(rect.y0 <= 741, "the clean area really does overlap the bar");
-  const cleaned = removeMark(image, found, rect);
+  const cleaned = removeMark(image, found, rect).image;
   for (let x = 1240; x < 1376; x += 1) {
     for (let y = 741; y < 745; y += 1) {
       const offset = (y * W + x) * 3;
