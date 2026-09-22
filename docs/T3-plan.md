@@ -17,7 +17,9 @@ In scope:
 - PPTX export: original image as background, optional temporary cover patches, native text boxes, speaker notes.
 - Accuracy tool `npm run test:detect` with ground truth, metrics, overlay images and a live injection check.
 - A verification script that opens the exported deck in the installed PowerPoint and measures it.
-- Minimal UI: Convert button, per-slide progress and a download button on the Processing page.
+- Box refinement: Gemini's boxes tightened to the ink on the slide (section 7.8).
+- NotebookLM watermark removal, in T3 rather than T4 (section 7.9).
+- Minimal UI: Convert button, per-slide progress, a download button, and resuming a job (section 8).
 
 Out of scope: inpainting (T4), object segmentation (T5), native panel shapes (T6), the full Review page and manual fixes (T7).
 
@@ -330,6 +332,63 @@ Tests cover a long single line, a multi-line block, center and right alignment n
 
 The output goes to `data/jobs/<id>/output/<generated name>.pptx`. `jobPathSegments` gains the `detect` and `output` folders with generated file names only, and `job.json` moves to version 2, which adds per-slide detection status.
 
+### 7.8 Box refinement (measured 2026-09-22)
+
+Gemini's text is nearly exact but its boxes are not. Over 36 matched pairs
+from the cached answers: no coordinate bug (the image sent is the size the
+ground truth was written on, x maps 1.001 to 1 with no offset, the axes are
+not swapped), but a systematic error. Boxes sit about 1.3% of the slide
+height too high, more so lower on the slide (y fits 0.974 x truth), and are
+about 15% too wide on both sides while their centres are not off
+horizontally. Height is off by chance, not systematically (x0.94 ± 0.19).
+
+`lib/box-refine.ts` corrects this from the slide's own pixels, as a pure
+function: search a little further up and down than sideways, estimate the
+background from the search area's edge, keep pixels near Gemini's reported
+text color (plain contrast when that color matches almost nothing), drop long
+frame lines, and keep the text lines Gemini's box mostly covers. A result
+that is too small, that grows past 1.05 x the width or 1.6 x the height, or
+that moves too far is refused, and Gemini's box is kept with the reason. Text
+is never read or changed.
+
+Measured from the cache (0 requests), IoU on the same pairs: 0.619 to 0.693
+overall; slide 12 0.617 to 0.736, slide 14 0.838 to 0.862, slide 4 0.531 to
+0.537 (8 of 10 boxes kept, because they cross a card edge and the background
+estimate is then unreliable), slide 1 0.887 to 0.781, where gold runes share
+the title's own color. The export uses refined boxes; blocks that kept
+Gemini's box are flagged for the Review page in T7. Whether to skip
+refinement on slides like 1 is a decision for after the full comparison, on
+more than 36 pairs.
+
+### 7.9 NotebookLM watermark (owner decision 2026-09-22)
+
+The mark is removed in T3, not T4, and the detection prompt is unchanged.
+
+- **Found by code, not Gemini** (`lib/watermark.ts`): a thin line of
+  letter-like edges in the bottom-right corner, at the mark's place and size,
+  with nothing running on to its left and no further line below it. Measured
+  on the sample deck: found on all 13 slides that carry it, on neither of the
+  two that do not.
+- **Removed only when the deck agrees**: at least 60% of the slides must show
+  that line in the same place, and only slides matching the deck-wide
+  position are touched. A deck with real content in that corner is left
+  alone; on the sample deck a false match on a textured corner was refused.
+- **Filled from the pixels around it**, never a flat rectangle of colour: the
+  mask holds the letters and, on light slides, the flat pill behind them
+  (flooded by its own colour, so an ornament touching it stays), and those
+  pixels are filled harmonically from their neighbours with grain from a
+  nearby patch. Pixels outside the mask keep their exact values.
+- **The original slide image is not modified.** The cleaned copy is the
+  export background; `slides/NNN.png` stays as extracted.
+- **Blocks Gemini labels `watermark` are not exported** as text boxes while
+  the option is on (`exportableBlocks`).
+- **UI option "Remove NotebookLM watermark", on by default** (section 8).
+- **Metrics keep watermarks apart** from the content CER (section 6.3), so
+  this never flatters the text numbers.
+- **Still visible after the simple fill:** a soft patch where the mark was,
+  clearest on a busy or gradient background (sample slide 9). See the T4 note
+  in `docs/plan.md`.
+
 ### 7.7 Known trade-offs
 
 - **Line breaks do not reflow (owner point 8).** Detection puts `\n` at every visual line, and the exporters write each line as its own paragraph. The exported text therefore keeps the slide's line breaks exactly, but when someone edits it in PowerPoint the lines do not flow and wrap again on their own. Re-evaluate in T7, for example by joining lines that only wrap because the box is narrow.
@@ -345,6 +404,13 @@ On the Processing page, after extraction finishes:
   - Queued, Detecting, Done, From cache, Skipped (mixed), Failed with a reason.
   - A live region announces the counts.
   - The real number of Gemini calls made for this job.
+- **Retry failed slides**: a job is resumable. Slides that failed with 503 or
+  429 are listed with their reason and a button that runs only those slides
+  again. Slides that already succeeded are never sent again: their detection
+  is stored in `job.json` (and in the development cache), so a retry costs
+  only the calls it needs. The same holds after a restart, because the job
+  folder is on disk; only the in-memory "running" flag is lost, so a job left
+  mid-detection shows as interrupted with the retry button.
 - **Download .pptx** when export finishes. The file name is based on the uploaded name, plus " (editable).pptx", sanitized and RFC 5987-encoded.
 - Routes:
   - `POST /api/jobs/[id]/convert`: session, same-origin, one conversion at a time per job.
