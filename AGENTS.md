@@ -24,7 +24,7 @@ ZanLM is a personal, local-first tool by Izzan Faikar Ramadhy that turns image-o
 
 - Next.js 16 App Router (`proxy.ts` replaces middleware), React 19, strict TypeScript, Zod for every schema.
 - Tailwind CSS v4 plus hand-written CSS in `app/globals.css` (see "Styling").
-- GSAP + `@gsap/react` (`useGSAP`, ScrollTrigger); Motion (`motion/react`) only as a React Bits dependency.
+- GSAP + `@gsap/react` (`useGSAP`, ScrollTrigger); Motion (`motion/react`) and `ogl` (WebGL) only as React Bits dependencies.
 - React Bits (TypeScript + Tailwind variants) in `components/reactbits/`.
 - Planned, not installed yet: `@google/genai` (T3), `pptxgenjs` (T3), Python FastAPI worker in `worker/` (T4+).
 - Tests: `node --test` for pure TypeScript, `pytest` for the worker once it exists.
@@ -103,9 +103,21 @@ Source: `design/tokens.json` (design reference) and `app/tokens.css` (runtime CS
 
 Install only through the official CLI (shadcn registry at `https://reactbits.dev/r/<Name>-TS-TW`). Never edit vendor files; wrap them instead. `components/reactbits/**` is excluded from ESLint.
 
-| Component | File                                | Used by                                                     | Notes                                                         |
-| --------- | ----------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------- |
-| BlurText  | `components/reactbits/BlurText.tsx` | `components/hero-title.tsx` (dynamic, reduced-motion aware) | Verified identical to official `BlurText-TS-TW` on 2026-09-22 |
+Install command (the `--dry-run` preview prints `components\` but the files do land in `components/reactbits/`):
+
+```
+npx shadcn@latest add https://reactbits.dev/r/<Name>-TS-TW --path components/reactbits
+```
+
+After installing, compare the file byte-for-byte with the registry `files[0].content` and check that `package.json` gained only the dependencies the registry lists.
+
+| Component | File                                | Used by                                                     | Notes                                                                                 |
+| --------- | ----------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| BlurText  | `components/reactbits/BlurText.tsx` | `components/hero-title.tsx` (dynamic, reduced-motion aware) | Verified identical to official `BlurText-TS-TW` on 2026-09-22; needs `motion`         |
+| Threads   | `components/reactbits/Threads.tsx`  | Planned: `components/animated-background.tsx`               | Installed via CLI 2026-09-22, verified identical; WebGL through `ogl`                 |
+| Magnet    | `components/reactbits/Magnet.tsx`   | Planned: `components/magnetic.tsx`                          | Installed via CLI 2026-09-22, verified identical; no dependencies; global `mousemove` |
+
+Approved third-party runtime dependencies beyond the Next/React stack: `gsap` + `@gsap/react` (GSAP Standard "no charge" license), `motion` (MIT), `ogl` (Unlicense, public domain; required by Threads), `lucide-react` (ISC), `zod`, `clsx`, `tailwind-merge`, `server-only` (MIT). Adding any other dependency needs the owner's approval.
 
 ## Folder structure
 

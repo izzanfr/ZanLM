@@ -11,7 +11,7 @@ Candidates were checked against the official registry (`https://reactbits.dev/r/
 | Look                 | Thin flowing lines that drift slowly; can be tinted navy at low amplitude | Regular dot grid; dots near the pointer brighten, a click sends a small shock wave |
 | Motion without input | Yes, continuous and slow                                                  | No; static until the pointer moves, so static on touch devices                     |
 | Renderer             | WebGL via `ogl`                                                           | Canvas 2D, uses GSAP InertiaPlugin                                                 |
-| New dependency       | `ogl` (MIT, free)                                                         | none (`gsap` already installed)                                                    |
+| New dependency       | `ogl` (Unlicense)                                                         | none (`gsap` already installed)                                                    |
 | Built-in pausing     | Skips work when offscreen (IntersectionObserver) or `document.hidden`     | None; redraws every frame while mounted                                            |
 | Global listeners     | none (mouse on its container only, and we disable it)                     | `mousemove` and `click` on `window`                                                |
 | Fit with white/navy  | Good: navy lines on white, pale blue lines on navy                        | Good: reads like a slide canvas grid                                               |
