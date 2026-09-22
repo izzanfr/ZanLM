@@ -4,17 +4,17 @@ Last updated: 2026-09-22. Read `AGENTS.md` first; the full plan is in `docs/plan
 
 ## Phase status
 
-| Phase                               | Status                                  | Last commit          | Notes                                                                                                                                  |
-| ----------------------------------- | --------------------------------------- | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| T0 Design                           | Done                                    | `1222ae5`            | Tokens, six mockups, three navbar options, storyboard and logo in `design/` and `docs/T0-design.md`. Navbar A chosen by the owner.     |
-| T1 Foundation                       | Done                                    | see T1 commits below | Auth, sessions, proxy, API guards, i18n, navbar, page transition, landing with Threads background, pinned layer demo and magnetic CTA. |
-| T2 Upload and extraction            | Done                                    | see T2 commits below | Upload, PPTX/PDF/image extraction with notes, job API, Upload and Processing pages. Plan in `docs/T2-plan.md`.                         |
-| T3 Gemini detection and text export | Decisions recorded, prompt under review | —                    | `docs/T3-plan.md`: decisions in section 12; waiting for the owner's feedback on the prompt draft (section 4.3). No T3 code yet.        |
-| T4 Worker and text inpainting       | Not started                             | —                    |                                                                                                                                        |
-| T5 Object segmentation              | Not started                             | —                    |                                                                                                                                        |
-| T6 Native panel shapes              | Not started                             | —                    |                                                                                                                                        |
-| T7 Review and fix, QA               | Not started                             | —                    |                                                                                                                                        |
-| T8 Tables and SVG icons (optional)  | Not started                             | —                    |                                                                                                                                        |
+| Phase                               | Status                                      | Last commit          | Notes                                                                                                                                                                             |
+| ----------------------------------- | ------------------------------------------- | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| T0 Design                           | Done                                        | `1222ae5`            | Tokens, six mockups, three navbar options, storyboard and logo in `design/` and `docs/T0-design.md`. Navbar A chosen by the owner.                                                |
+| T1 Foundation                       | Done                                        | see T1 commits below | Auth, sessions, proxy, API guards, i18n, navbar, page transition, landing with Threads background, pinned layer demo and magnetic CTA.                                            |
+| T2 Upload and extraction            | Done                                        | see T2 commits below | Upload, PPTX/PDF/image extraction with notes, job API, Upload and Processing pages. Plan in `docs/T2-plan.md`.                                                                    |
+| T3 Gemini detection and text export | Prompt revised, ground truth awaiting check | —                    | `docs/T3-plan.md`: decisions (section 12), revised prompt and schema (4.2, 4.3), ground truth for slides 1, 4, 12, 14 in the git-ignored `samples/ground-truth/`. No T3 code yet. |
+| T4 Worker and text inpainting       | Not started                                 | —                    |                                                                                                                                                                                   |
+| T5 Object segmentation              | Not started                                 | —                    |                                                                                                                                                                                   |
+| T6 Native panel shapes              | Not started                                 | —                    |                                                                                                                                                                                   |
+| T7 Review and fix, QA               | Not started                                 | —                    |                                                                                                                                                                                   |
+| T8 Tables and SVG icons (optional)  | Not started                                 | —                    |                                                                                                                                                                                   |
 
 History note: the previous agent (ChatGPT) built T0 and most of T1 without git and stopped without a handoff. Commit `1222ae5` is that work imported as-is.
 
@@ -156,6 +156,6 @@ Must still be visible and usable:
 
 ## Next steps
 
-1. Owner reviews the detection prompt draft in `docs/T3-plan.md` section 4.3. **Do not start T3 code or create `docs/detection-prompt.md` before that feedback.**
-2. Then write the ground truth for slides 1, 4, 12 and 14 (T3 plan, commit step 0) and stop for the owner's check.
+1. Owner checks the ground truth (`samples/ground-truth/Skin_Barrier_Alchemy.pptx.json`, overlays in `samples/ground-truth/overlays/`), confirms the revised prompt in `docs/T3-plan.md` section 4.3, and decides whether slide 9 joins the ground truth.
+2. Only then: create `docs/detection-prompt.md` from section 4.3 and start the T3 commits in section 11.
 3. Owner checks reduced motion with the checklist above.
