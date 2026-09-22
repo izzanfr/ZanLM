@@ -4,17 +4,17 @@ Last updated: 2026-09-22. Read `AGENTS.md` first; the full plan is in `docs/plan
 
 ## Phase status
 
-| Phase                               | Status                                      | Last commit          | Notes                                                                                                                                                                             |
-| ----------------------------------- | ------------------------------------------- | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| T0 Design                           | Done                                        | `1222ae5`            | Tokens, six mockups, three navbar options, storyboard and logo in `design/` and `docs/T0-design.md`. Navbar A chosen by the owner.                                                |
-| T1 Foundation                       | Done                                        | see T1 commits below | Auth, sessions, proxy, API guards, i18n, navbar, page transition, landing with Threads background, pinned layer demo and magnetic CTA.                                            |
-| T2 Upload and extraction            | Done                                        | see T2 commits below | Upload, PPTX/PDF/image extraction with notes, job API, Upload and Processing pages. Plan in `docs/T2-plan.md`.                                                                    |
-| T3 Gemini detection and text export | Prompt revised, ground truth awaiting check | —                    | `docs/T3-plan.md`: decisions (section 12), revised prompt and schema (4.2, 4.3), ground truth for slides 1, 4, 12, 14 in the git-ignored `samples/ground-truth/`. No T3 code yet. |
-| T4 Worker and text inpainting       | Not started                                 | —                    |                                                                                                                                                                                   |
-| T5 Object segmentation              | Not started                                 | —                    |                                                                                                                                                                                   |
-| T6 Native panel shapes              | Not started                                 | —                    |                                                                                                                                                                                   |
-| T7 Review and fix, QA               | Not started                                 | —                    |                                                                                                                                                                                   |
-| T8 Tables and SVG icons (optional)  | Not started                                 | —                    |                                                                                                                                                                                   |
+| Phase                               | Status                                       | Last commit          | Notes                                                                                                                                                        |
+| ----------------------------------- | -------------------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| T0 Design                           | Done                                         | `1222ae5`            | Tokens, six mockups, three navbar options, storyboard and logo in `design/` and `docs/T0-design.md`. Navbar A chosen by the owner.                           |
+| T1 Foundation                       | Done                                         | see T1 commits below | Auth, sessions, proxy, API guards, i18n, navbar, page transition, landing with Threads background, pinned layer demo and magnetic CTA.                       |
+| T2 Upload and extraction            | Done                                         | see T2 commits below | Upload, PPTX/PDF/image extraction with notes, job API, Upload and Processing pages. Plan in `docs/T2-plan.md`.                                               |
+| T3 Gemini detection and text export | In progress, stopped at the model checkpoint | `4473c93`            | Prompt, Gemini client, policy, cache and `test:detect` done. The model comparison is not measured yet (see Known issues). Export waits for the model choice. |
+| T4 Worker and text inpainting       | Not started                                  | —                    |                                                                                                                                                              |
+| T5 Object segmentation              | Not started                                  | —                    |                                                                                                                                                              |
+| T6 Native panel shapes              | Not started                                  | —                    |                                                                                                                                                              |
+| T7 Review and fix, QA               | Not started                                  | —                    |                                                                                                                                                              |
+| T8 Tables and SVG icons (optional)  | Not started                                  | —                    |                                                                                                                                                              |
 
 History note: the previous agent (ChatGPT) built T0 and most of T1 without git and stopped without a handoff. Commit `1222ae5` is that work imported as-is.
 
@@ -135,6 +135,8 @@ Must still be visible and usable:
 
 ## Known issues
 
+- **Model comparison not measured yet (2026-09-22).** The run of `gemini-3.5-flash-lite` and `gemini-3.8-flash` at default and high resolution was stopped after 30 minutes. Every 3.5 Flash-Lite request came back 503 "high demand" or timed out (43 logged 503s, 3 timeouts, 0 successes, 0 429s); 3.8 Flash was never reached. Nothing was cached for those models, so a rerun repeats no successful call. Only `gemini-3.1-flash-lite` answered that evening (slide 1: CER 0.0%, IoU 0.887; injection passed).
+
 - **Speaker notes are only covered by synthetic tests.** The one real sample has no notes. Check a deck with notes before relying on them in T3.
 - **NotebookLM pictures are low resolution:** 1376 px wide on a 17.8-inch slide is about 77 dpi. Detection in T3 works on that, nothing upstream can improve it.
 - A PPTX slide without any usable picture is skipped rather than kept as an empty slide, so slide numbers shift after it. The sample has none; revisit if a real deck shows one.
@@ -156,6 +158,6 @@ Must still be visible and usable:
 
 ## Next steps
 
-1. Owner checks the ground truth (`samples/ground-truth/Skin_Barrier_Alchemy.pptx.json`, overlays in `samples/ground-truth/overlays/`), confirms the revised prompt in `docs/T3-plan.md` section 4.3, and decides whether slide 9 joins the ground truth.
-2. Only then: create `docs/detection-prompt.md` from section 4.3 and start the T3 commits in section 11.
+1. Rerun the comparison (cache on, nothing is repeated): `npm run test:detect -- --model gemini-3.5-flash-lite --model gemini-3.8-flash --media-resolution default --media-resolution high`. Report CER, missed and extra blocks, IoU and dropped runs, with overlays, then stop for the owner to choose the model and resolution.
+2. Only after that choice: the export commits (T3 plan, section 11, from commit 5).
 3. Owner checks reduced motion with the checklist above.
