@@ -30,6 +30,142 @@ function check(actual, expected, label) {
   assert.equal(actual, expected, label);
   assertions++;
 }
+
+// A 2 x 2 PNG, generated rather than committed, so the upload path is
+// exercised with something sharp really accepts.
+async function tinyPng() {
+  const { default: sharp } = await import("sharp");
+  return sharp({ create: { width: 16, height: 16, channels: 3, background: "#142b4a" } })
+    .png()
+    .toBuffer();
+}
+
+async function checkJobRoutes({ origin, cookie, post, check }) {
+  const put = (path, body, headers = {}) =>
+    fetch(origin + path, {
+      method: "PUT",
+      headers: { Origin: origin, ...headers },
+      body,
+      duplex: "half",
+    });
+
+  check((await post("/api/jobs")).status, 401, "job creation checks session");
+  check(
+    (await post("/api/jobs", undefined, { Cookie: cookie, Origin: "https://untrusted.example" }))
+      .status,
+    403,
+    "job creation rejects cross-origin",
+  );
+
+  const created = await post("/api/jobs", undefined, { Cookie: cookie });
+  check(created.status, 201, "job created");
+  const { id } = await created.json();
+  assert.match(id, /^[0-9a-f-]{36}$/);
+  assertions++;
+
+  // Path traversal through the id, in several shapes.
+  for (const bad of ["..", "%2e%2e", "..%2f..%2fjob", "not-a-uuid"]) {
+    check(
+      (await fetch(`${origin}/api/jobs/${bad}`, { headers: { Cookie: cookie } })).status,
+      404,
+      `job id "${bad}" rejected`,
+    );
+  }
+
+  const png = await tinyPng();
+  check(
+    (await put(`/api/jobs/${id}/files`, png, { Cookie: cookie })).status,
+    400,
+    "upload without a file name rejected",
+  );
+  check(
+    (
+      await put(`/api/jobs/${id}/files`, Buffer.from("MZ\x90\x00 not an image"), {
+        Cookie: cookie,
+        "X-File-Name": "totally-a-slide.png",
+      })
+    ).status,
+    415,
+    "a renamed executable is rejected on its bytes",
+  );
+  // A real PNG signature followed by 60 MB of padding, so it gets past the
+  // type check and is stopped by the size cap rather than before it.
+  const oversized = Buffer.concat([png.subarray(0, 8), Buffer.alloc(60 * 1024 * 1024)]);
+  check(
+    (await put(`/api/jobs/${id}/files`, oversized, { Cookie: cookie, "X-File-Name": "huge.png" }))
+      .status,
+    413,
+    "a file over the cap is rejected",
+  );
+
+  const uploaded = await put(`/api/jobs/${id}/files`, png, {
+    Cookie: cookie,
+    "X-File-Name": "slide-2.png",
+  });
+  check(uploaded.status, 201, "png upload accepted");
+  await put(`/api/jobs/${id}/files`, png, { Cookie: cookie, "X-File-Name": "slide-10.png" });
+
+  // A PPTX cannot join a job that already holds images.
+  check(
+    (
+      await put(`/api/jobs/${id}/files`, Buffer.from("PK\x03\x04 pretend deck"), {
+        Cookie: cookie,
+        "X-File-Name": "deck.pptx",
+      })
+    ).status,
+    409,
+    "mixing a deck into an image job is rejected",
+  );
+
+  check(
+    (await post(`/api/jobs/${id}/start`, undefined, { Cookie: cookie })).status,
+    202,
+    "start accepted",
+  );
+
+  let job;
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const response = await fetch(`${origin}/api/jobs/${id}`, { headers: { Cookie: cookie } });
+    job = await response.json();
+    if (job.status === "done" || job.status === "failed") break;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  check(job.status, "done", "extraction finished");
+  check(job.slides.length, 2, "both images became slides");
+  // Natural order: slide-2 before slide-10, despite the string order.
+  check(job.files[0].name, "slide-2.png", "first uploaded file recorded");
+
+  const slide = await fetch(`${origin}/api/jobs/${id}/slides/1`, { headers: { Cookie: cookie } });
+  check(slide.status, 200, "slide image served");
+  check(slide.headers.get("content-type"), "image/png", "slide served as png");
+  check(
+    (await fetch(`${origin}/api/jobs/${id}/slides/99`, { headers: { Cookie: cookie } })).status,
+    404,
+    "unknown slide index rejected",
+  );
+  check(
+    (await fetch(`${origin}/api/jobs/${id}/slides/..%2f..%2fjob`, { headers: { Cookie: cookie } }))
+      .status,
+    404,
+    "slide index traversal rejected",
+  );
+  check(
+    (await fetch(`${origin}/api/jobs/${id}/slides/1`)).status,
+    401,
+    "slide image checks session",
+  );
+
+  const removed = await fetch(`${origin}/api/jobs/${id}`, {
+    method: "DELETE",
+    headers: { Cookie: cookie, Origin: origin },
+  });
+  check(removed.status, 200, "job deleted");
+  check(
+    (await fetch(`${origin}/api/jobs/${id}`, { headers: { Cookie: cookie } })).status,
+    404,
+    "deleted job is gone",
+  );
+}
 try {
   for (let i = 0; i < 150 && !ready; i++) {
     if (child.exitCode !== null) throw new Error("Test server exited before startup.");
@@ -97,6 +233,8 @@ try {
     401,
     "tampered session rejected",
   );
+  await checkJobRoutes({ origin, cookie, post, check });
+
   check(
     (
       await post("/api/auth/logout", undefined, {

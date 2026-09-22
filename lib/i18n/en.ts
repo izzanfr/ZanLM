@@ -119,6 +119,18 @@ export const en = {
     badge: "Coming next",
     noUpload: "No files have been uploaded.",
   },
+  jobs: {
+    notFound: "That job isn’t here.",
+    wrongState: "This job can’t do that right now.",
+    noFiles: "Add at least one file first.",
+    missingName: "The file name is missing.",
+    unsupported: "Only PPTX, PDF, PNG and JPG files are supported.",
+    tooLarge: "That file is over the size limit.",
+    mixedTypes: "Upload one PPTX, one PDF, or a set of images — not a mix.",
+    tooManyFiles: "Upload only one PPTX or PDF at a time.",
+    tooManyImages: "That is more images than a job can hold.",
+    slideNotFound: "That slide isn’t here.",
+  },
   errors: {
     unauthorized: "Please sign in to continue.",
     forbidden: "This request is not allowed.",
