@@ -48,16 +48,22 @@ History note: the previous agent (ChatGPT) built T0 and most of T1 without git a
 - **Login rate limit is one global bucket** (`createLoginLimiter` in `lib/auth/core.ts`). Anyone can lock sign-in for 60 seconds. Acceptable for loopback-only use; **must be replaced with a per-IP limiter (using a trusted proxy header) before any deploy.**
 - There is no `.env.local` yet. The owner will run `npm run setup` themselves. Process environment variables override `.env.local` in Next.js, so stale `ACCESS_CODE`/`SESSION_SECRET` in the Windows environment must be removed first.
 - Landing motion is below the approved storyboard: no pinned demo, no label or reassembly phase, no animated background, CTA has only a tonal hover.
-- Source files are minified single lines (fixed by the Prettier commit that follows this document).
-- Tailwind is installed but tokens are not mapped to `@theme` and utilities are barely used.
+- Legacy components still use class-based CSS in `app/globals.css`; they migrate to Tailwind only when touched (see AGENTS.md, Styling).
 - Dark mode and reduced motion have no automated or visual verification yet.
 - `node_modules` contains three extraneous packages (`@img/sharp-wasm32`, `@napi-rs/wasm-runtime`, `@tybys/wasm-util`); harmless, removable with `npm prune`.
+- `scripts/setup.mjs` writes the access code in plain text to `.env.local` (needed because the server hashes both sides at compare time). The `0o600` file mode has no effect on Windows; the file is protected only by the user profile ACL and `.gitignore`.
 - `npm start` sets Secure cookies, so production mode over plain HTTP cannot sign in; use `npm run dev` locally.
+
+## Resolved after the audit
+
+- Git initialized; baseline `84e844f`.
+- Handoff docs written and T0 approval recorded (`01e17aa`).
+- Codebase formatted with Prettier; `format`, `format:check` and `check` scripts; LF enforced (`60c72b1`).
+- `npm run setup` was documented but missing from package.json; added (`a9b9b61`).
+- Design tokens mapped to Tailwind `@theme` in `app/tokens.css`; `dark:` bound to `data-theme`.
 
 ## Next steps
 
-1. Prettier: add `.prettierrc`, `.prettierignore`, `.gitattributes` (LF), `format` and `format:check` scripts; format the code in one behavior-neutral commit; add `format:check` to the checks.
-2. Map design tokens to Tailwind `@theme` in `app/globals.css` and document it.
-3. Write the T1 animation plan (two background options, pinned demo, CTA effect, CLI install) and wait for owner approval.
-4. Implement the approved animation work, verify reduced motion and dark mode in a browser, then close T1.
-5. Write the T2 plan (upload, PPTX/PDF/PNG/JPG extraction, Processing page without AI) and wait for approval.
+1. Owner reviews the T1 motion plan in `docs/T1-motion-plan.md` and picks a background option. Do not implement before approval.
+2. Implement the approved motion work, verify reduced motion and dark mode in a browser, then close T1.
+3. Write the T2 plan (upload, PPTX/PDF/PNG/JPG extraction, Processing page without AI) and wait for approval.
