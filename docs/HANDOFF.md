@@ -6,7 +6,7 @@ Last updated: 2026-09-22. Read `AGENTS.md` first; the full plan is in `docs/plan
 
 | Phase                               | Status                 | Last commit          | Notes                                                                                                                                  |
 | ----------------------------------- | ---------------------- | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| T0 Design                           | Done                   | `84e844f`            | Tokens, six mockups, three navbar options, storyboard and logo in `design/` and `docs/T0-design.md`. Navbar A chosen by the owner.     |
+| T0 Design                           | Done                   | `1222ae5`            | Tokens, six mockups, three navbar options, storyboard and logo in `design/` and `docs/T0-design.md`. Navbar A chosen by the owner.     |
 | T1 Foundation                       | Done                   | see T1 commits below | Auth, sessions, proxy, API guards, i18n, navbar, page transition, landing with Threads background, pinned layer demo and magnetic CTA. |
 | T2 Upload and extraction            | Plan awaiting approval | —                    | `docs/T2-plan.md`                                                                                                                      |
 | T3 Gemini detection and text export | Not started            | —                    |                                                                                                                                        |
@@ -16,23 +16,23 @@ Last updated: 2026-09-22. Read `AGENTS.md` first; the full plan is in `docs/plan
 | T7 Review and fix, QA               | Not started            | —                    |                                                                                                                                        |
 | T8 Tables and SVG icons (optional)  | Not started            | —                    |                                                                                                                                        |
 
-History note: the previous agent (ChatGPT) built T0 and most of T1 without git and stopped without a handoff. Commit `84e844f` is that work imported as-is.
+History note: the previous agent (ChatGPT) built T0 and most of T1 without git and stopped without a handoff. Commit `1222ae5` is that work imported as-is.
 
 ### T1 commits
 
 | Commit      | Change                                                                  |
 | ----------- | ----------------------------------------------------------------------- |
-| `84e844f`   | Baseline import of the previous agent's work                            |
-| `01e17aa`   | Handoff docs, T0 approval record                                        |
-| `60c72b1`   | Prettier formatting, `format`/`format:check`/`check` scripts, LF        |
-| `a9b9b61`   | Missing `npm run setup` script added                                    |
-| `df61703`   | Design tokens mapped to Tailwind `@theme`                               |
-| `1c22fd4`   | T1 motion plan                                                          |
-| `113be19`   | `next-env.d.ts` no longer tracked                                       |
-| `0fe4c01`   | React Bits Threads and Magnet via CLI, `ogl` dependency                 |
-| `48ce461`   | Threads background on hero and sign-in, static fallback, contrast tests |
-| `9362398`   | Pinned three-phase layer demo                                           |
-| `6ea7dbd`   | Magnetic hero CTA                                                       |
+| `1222ae5`   | Baseline import of the previous agent's work                            |
+| `ea63820`   | Handoff docs, T0 approval record                                        |
+| `9c650e1`   | Prettier formatting, `format`/`format:check`/`check` scripts, LF        |
+| `b379a24`   | Missing `npm run setup` script added                                    |
+| `ff19e01`   | Design tokens mapped to Tailwind `@theme`                               |
+| `5352f98`   | T1 motion plan                                                          |
+| `12aefbd`   | `next-env.d.ts` no longer tracked                                       |
+| `6f94194`   | React Bits Threads and Magnet via CLI, `ogl` dependency                 |
+| `f67c345`   | Threads background on hero and sign-in, static fallback, contrast tests |
+| `e492868`   | Pinned three-phase layer demo                                           |
+| `6c45cea`   | Magnetic hero CTA                                                       |
 | this commit | T1 closed in the docs                                                   |
 
 ## T1 features and how they were verified

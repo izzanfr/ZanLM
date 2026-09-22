@@ -148,5 +148,6 @@ proxy.ts             redirects unauthenticated /workspace requests
 
 - Put decision logic in pure functions that can be tested without the SDK or Next runtime; keep SDK calls in thin wrappers.
 - Validate every external input (request bodies, AI output, env) with Zod.
+- Commit messages carry no AI co-author trailers or AI tool notes; the owner is the only author.
 - Small, meaningful commits in English. Update `docs/HANDOFF.md` at the end of every phase.
 - Plan first, code second. Ask the owner with numbered options (and a recommendation) when a decision is ambiguous.
