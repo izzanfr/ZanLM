@@ -26,7 +26,7 @@ ZanLM is a personal, local-first tool by Izzan Faikar Ramadhy that turns image-o
 - Tailwind CSS v4 plus hand-written CSS in `app/globals.css` (see "Styling").
 - GSAP + `@gsap/react` (`useGSAP`, ScrollTrigger); Motion (`motion/react`) and `ogl` (WebGL) only as React Bits dependencies.
 - React Bits (TypeScript + Tailwind variants) in `components/reactbits/`.
-- Planned, not installed yet: `@google/genai` (T3), `pptxgenjs` (T3), Python FastAPI worker in `worker/` (T4+).
+- `@google/genai` (T3, installed). Planned, not installed yet: `pptxgenjs` (T3 export), Python FastAPI worker in `worker/` (T4+).
 - Tests: `node --test` for pure TypeScript, `pytest` for the worker once it exists.
 - No database. Job artifacts go to `data/jobs/<id>/` (git-ignored). Private sample decks go to `samples/` (git-ignored).
 
@@ -121,7 +121,7 @@ After installing, compare the file byte-for-byte with the registry `files[0].con
 
 Approved third-party runtime dependencies beyond the Next/React stack: `gsap` + `@gsap/react` (GSAP Standard "no charge" license), `motion` (MIT), `ogl` (Unlicense, public domain; required by Threads), `lucide-react` (ISC), `zod`, `clsx`, `tailwind-merge`, `server-only` (MIT). Adding any other dependency needs the owner's approval.
 
-Extraction dependencies, approved for T2 on 2026-09-22: `fflate` (MIT, ZIP entries for PPTX), `fast-xml-parser` (MIT, slide and notes XML), `sharp` (Apache-2.0, image decode and normalize; declared directly at the version Next already resolves), `pdfjs-dist` (Apache-2.0, PDF parsing and rendering) and `@napi-rs/canvas` (MIT, canvas backend for pdf.js in Node). The last three are listed in `serverExternalPackages` in `next.config.ts` so their native binaries and worker are required at runtime instead of bundled.
+Extraction dependencies, approved for T2 on 2026-09-22: `fflate` (MIT, ZIP entries for PPTX), `fast-xml-parser` (MIT, slide and notes XML), `sharp` (Apache-2.0, image decode and normalize; declared directly at the version Next already resolves), `pdfjs-dist` (Apache-2.0, PDF parsing and rendering) and `@napi-rs/canvas` (MIT, canvas backend for pdf.js in Node). T3 adds `@google/genai` 2.24.0 (Apache-2.0, the official Gemini SDK), approved 2026-09-22; `pptxgenjs` 4.0.1 (MIT) is approved too and is installed with the PPTX export. The last three extraction packages are listed in `serverExternalPackages` in `next.config.ts` so their native binaries and worker are required at runtime instead of bundled.
 
 ## Folder structure
 

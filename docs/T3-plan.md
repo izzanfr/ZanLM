@@ -380,7 +380,7 @@ Free-tier limits differ by model and by account. Google's rate-limit page (last 
 ## 11. Commits
 
 0. Ground truth for slides 1, 4, 12 and 14, written into `samples/ground-truth/` (not committed). Needs no T3 code, only the existing extractor. **Stop for the owner's check.**
-1. `chore: add Gemini and PPTX dependencies`: also checks pptxgenjs for `objectName` and hidden slides.
+1. `chore: add the Gemini SDK`. pptxgenjs is installed later, with the export (commit 5), and that commit also checks it for `objectName` and hidden slides.
 2. `docs: add detection prompt`: `docs/detection-prompt.md`, `lib/prompts/detection.ts`, and the equality test.
 3. `feat: add Gemini client and fallback policy`: the schema, the pure policy, the thin client, the cache, and the key-sanitizer test.
 4. `feat: add detection post-processing and text layout`: boxes, font mapping, and size fitting with real metrics.
