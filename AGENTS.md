@@ -121,6 +121,8 @@ After installing, compare the file byte-for-byte with the registry `files[0].con
 
 Approved third-party runtime dependencies beyond the Next/React stack: `gsap` + `@gsap/react` (GSAP Standard "no charge" license), `motion` (MIT), `ogl` (Unlicense, public domain; required by Threads), `lucide-react` (ISC), `zod`, `clsx`, `tailwind-merge`, `server-only` (MIT). Adding any other dependency needs the owner's approval.
 
+Extraction dependencies, approved for T2 on 2026-09-22: `fflate` (MIT, ZIP entries for PPTX), `fast-xml-parser` (MIT, slide and notes XML), `sharp` (Apache-2.0, image decode and normalize; declared directly at the version Next already resolves), `pdfjs-dist` (Apache-2.0, PDF parsing and rendering) and `@napi-rs/canvas` (MIT, canvas backend for pdf.js in Node). The last three are listed in `serverExternalPackages` in `next.config.ts` so their native binaries and worker are required at runtime instead of bundled.
+
 ## Folder structure
 
 ```

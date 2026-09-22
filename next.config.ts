@@ -2,6 +2,8 @@ import type { NextConfig } from "next";
 const config: NextConfig = {
   turbopack: { root: process.cwd() },
   poweredByHeader: false,
+  // Native binaries and the pdf.js worker must be required at runtime, not bundled.
+  serverExternalPackages: ["sharp", "@napi-rs/canvas", "pdfjs-dist"],
   async headers() {
     return [
       {
