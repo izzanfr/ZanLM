@@ -44,4 +44,4 @@ npm start
 
 The future Python worker is isolated under `worker/` and will bind only to 127.0.0.1, require WORKER_SECRET, and support GPU/CPU. It is **not implemented** in T1. There is no database. Future job artifacts belong in ignored `data/jobs/<id>/`; private test decks belong in ignored `samples/`.
 
-See `docs/HANDOFF.md`, `docs/plan.md`, and `docs/T0-design.md` for the phase boundary and next steps.
+See `AGENTS.md` for agent rules and `docs/HANDOFF.md`, `docs/plan.md`, and `docs/T0-design.md` for status, the plan and the design.

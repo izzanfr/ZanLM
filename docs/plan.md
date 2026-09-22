@@ -4,7 +4,18 @@ Source: the user-supplied slide reconstruction brief. The working name has been 
 
 ## Accepted design
 
-T0 approved after three visual revisions and a final logo-padding refinement. White/navy replaces charcoal/lime. No green remains in the illustrative slides. The logo has a Z, slide frame, detached square, and 10-unit interior padding. Use concise copy, meaningful status and progressive disclosure. Floating studio pill A is the implementation default following acceptance of the mockups. Desktop and mobile layouts must keep source-slide proportions intact. Navy dark mode remains supported.
+T0 approved after three visual revisions and a final logo-padding refinement. White/navy replaces charcoal/lime. No green remains in the illustrative slides. The logo has a Z, slide frame, detached square, and 10-unit interior padding. Use concise copy, meaningful status and progressive disclosure. Desktop and mobile layouts must keep source-slide proportions intact. Navy dark mode remains supported.
+
+Owner decisions confirmed on 2026-09-22 (details and rejected alternatives in `docs/HANDOFF.md`):
+
+- Name ZanLM; white/navy palette; light theme default.
+- Navbar option A, Floating studio pill.
+- Landing motion option (c): the storyboard demo is pinned on spacious desktop layouts with separate, label and reassembly phases; one subtle animated React Bits background in the hero (optionally Sign in) that pauses offscreen or in a hidden tab and is off under reduced motion; magnet or spotlight effect on the main CTA. React Bits components are installed via the official CLI.
+- Prettier formatting is mandatory; minified source is not allowed.
+- Tailwind v4: design tokens are mapped to `@theme`; new components use Tailwind utilities; existing CSS in `app/globals.css` migrates only when its file is touched.
+- The global login rate limit must become per-IP before any deploy.
+
+Current status: T0 done, T1 in progress (see `docs/HANDOFF.md`).
 
 ## Phase gates
 

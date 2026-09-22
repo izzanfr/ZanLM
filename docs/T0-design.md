@@ -1,6 +1,6 @@
 # ZanLM — T0 design proposal
 
-Status: design artifacts prepared; awaiting user selection and design approval. No application implementation has started.
+Status: **approved**. On 2026-09-22 the owner confirmed navbar **option A (Floating studio pill)**, the product name **ZanLM**, and the **white/navy palette with light theme as default**. The landing motion was later upgraded to option (c); see "Approval record" at the end and `docs/HANDOFF.md`. Sections below keep the original proposal text for reference.
 Author credit: Izzan Faikar Ramadhy. Product UI and repository documentation are English; user discussion is Indonesian.
 
 ## Direction and identity
@@ -93,3 +93,11 @@ Visual QA: inspected browser-rendered full-page screenshots of all six screens a
 ## Logo spacing refinement
 
 The user accepted the mockup direction and requested balanced internal logo spacing. The Z now occupies x=20..44 and y=22..44 inside the frame inner bounds x=10..54 and y=12..54: exactly 10 units of clearance on each side, measured against the straight frame edges. The detached square and frame remain unchanged. All logo variants and mockups are regenerated from the shared mark definition.
+
+## Approval record
+
+2026-09-22 — The owner explicitly approved:
+
+- Navbar option A, Floating studio pill (B and C rejected).
+- Product name ZanLM and the white/navy palette with the light theme as default; the navy dark theme stays supported.
+- Landing motion option (c), which extends the storyboard above: the "separate" demo is pinned on spacious desktop layouts and includes the label and reassembly phases; one subtle animated React Bits background in the hero (optionally also on Sign in) that fits the palette, pauses offscreen or in a hidden tab, and is off under reduced motion; a magnet or spotlight effect on the main CTA. This replaces the earlier "fine slide-outline motif" and "small tonal change" CTA decisions. The detailed plan needs owner approval before implementation.
