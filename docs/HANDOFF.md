@@ -4,17 +4,17 @@ Last updated: 2026-09-22. Read `AGENTS.md` first; the full plan is in `docs/plan
 
 ## Phase status
 
-| Phase                               | Status                 | Last commit          | Notes                                                                                                                                  |
-| ----------------------------------- | ---------------------- | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| T0 Design                           | Done                   | `1222ae5`            | Tokens, six mockups, three navbar options, storyboard and logo in `design/` and `docs/T0-design.md`. Navbar A chosen by the owner.     |
-| T1 Foundation                       | Done                   | see T1 commits below | Auth, sessions, proxy, API guards, i18n, navbar, page transition, landing with Threads background, pinned layer demo and magnetic CTA. |
-| T2 Upload and extraction            | Plan awaiting approval | —                    | `docs/T2-plan.md`                                                                                                                      |
-| T3 Gemini detection and text export | Not started            | —                    |                                                                                                                                        |
-| T4 Worker and text inpainting       | Not started            | —                    |                                                                                                                                        |
-| T5 Object segmentation              | Not started            | —                    |                                                                                                                                        |
-| T6 Native panel shapes              | Not started            | —                    |                                                                                                                                        |
-| T7 Review and fix, QA               | Not started            | —                    |                                                                                                                                        |
-| T8 Tables and SVG icons (optional)  | Not started            | —                    |                                                                                                                                        |
+| Phase                               | Status      | Last commit          | Notes                                                                                                                                  |
+| ----------------------------------- | ----------- | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| T0 Design                           | Done        | `1222ae5`            | Tokens, six mockups, three navbar options, storyboard and logo in `design/` and `docs/T0-design.md`. Navbar A chosen by the owner.     |
+| T1 Foundation                       | Done        | see T1 commits below | Auth, sessions, proxy, API guards, i18n, navbar, page transition, landing with Threads background, pinned layer demo and magnetic CTA. |
+| T2 Upload and extraction            | Done        | see T2 commits below | Upload, PPTX/PDF/image extraction with notes, job API, Upload and Processing pages. Plan in `docs/T2-plan.md`.                         |
+| T3 Gemini detection and text export | Not started | —                    |                                                                                                                                        |
+| T4 Worker and text inpainting       | Not started | —                    |                                                                                                                                        |
+| T5 Object segmentation              | Not started | —                    |                                                                                                                                        |
+| T6 Native panel shapes              | Not started | —                    |                                                                                                                                        |
+| T7 Review and fix, QA               | Not started | —                    |                                                                                                                                        |
+| T8 Tables and SVG icons (optional)  | Not started | —                    |                                                                                                                                        |
 
 History note: the previous agent (ChatGPT) built T0 and most of T1 without git and stopped without a handoff. Commit `1222ae5` is that work imported as-is.
 
@@ -34,6 +34,40 @@ History note: the previous agent (ChatGPT) built T0 and most of T1 without git a
 | `e492868`   | Pinned three-phase layer demo                                           |
 | `6c45cea`   | Magnetic hero CTA                                                       |
 | this commit | T1 closed in the docs                                                   |
+
+## T2 commits
+
+| Commit    | Change                                                                                    |
+| --------- | ----------------------------------------------------------------------------------------- |
+| `6399b5a` | Lockfile synced (missing optional `@emnapi/*` entries) so `npm ci` works on a fresh clone |
+| `0e54509` | Navbar stays visible under reduced motion; specificity guarded by a test                  |
+| `26e4082` | Extraction dependencies                                                                   |
+| `564722a` | Job ids, storage layout, magic bytes, file-mix rule, job.json schema                      |
+| `b604915` | Bounded ZIP reader, hardened XML parser, PPTX order, pictures, notes                      |
+| `ed87a91` | PDF extraction (original picture or render) and image normalization                       |
+| `2c2bc86` | Job API routes and in-process extraction with cancel                                      |
+| `160cdb4` | `npm run test:extract` over `samples/`                                                    |
+| `d95d90d` | Upload and Processing pages                                                               |
+| this      | T2 closed in the docs                                                                     |
+
+## T2 features and how they were verified
+
+- **Storage:** `data/jobs/<uuid>/` with `job.json` (Zod, strict), `source/`, `slides/`, `notes/`. Every path goes through `jobPathSegments` in `lib/jobs/core.ts`, which validates the id, the folder and the generated file name and throws otherwise. Uploaded names are display text only.
+- **Job ids:** `crypto.randomUUID()` on the server only; validated against a strict v4 pattern in every route and on the Processing page before any file access.
+- **Upload:** raw-body `PUT`, streamed with a byte counter (50 MB default), type from magic bytes on the first 8 bytes, file-mix rule checked before a byte is written. Rejected uploads are drained within a bounded budget so the 4xx reaches the browser instead of a connection reset.
+- **Zip bomb:** `lib/jobs/zip.ts` inflates only requested entries and counts inflated bytes as they arrive (500 MB total, 100 MB per entry, 2,000 entries; 64 MB / 8 MB for the XML pass). Two passes: XML parts first, then only the pictures the deck uses. Tested with a 200 MB bomb in a ~200 KB archive.
+- **Zip slip:** entry names are only matched, never written. Traversal-shaped names are not treated as parts; relationship targets that leave the package resolve to nothing.
+- **XML:** any `DOCTYPE`, `ENTITY` or `NOTATION` declaration is refused before parsing. fast-xml-parser 5 already refuses external entities, but expands internal DOCTYPE entities by default, so the pre-check is what stops billion laughs. `htmlEntities` is on because numeric references such as `&#233;` otherwise stay literal and mangle notes.
+- **Images:** header dimensions checked before decode (max 20,000 px per side, 100 MP, min 8 px), `limitInputPixels` set on every sharp call, EXIF rotation applied. A PNG header rewritten to claim 60,000 × 60,000 is refused.
+- **PPTX:** order from `p:sldIdLst` through relationships, hidden slides kept and marked, largest on-slide picture chosen, slide flagged `mixed` when it is not one full-bleed picture (more pictures, a group, any text, or under 98% coverage). Notes copied exactly with `a:br` restored as a newline.
+- **PDF (decision 1A):** lossless extraction was feasible. A page that is exactly one full-page image XObject (no text, paths, shadings, masks or forms) keeps the embedded picture at its native resolution. Other pages render at `max(1600 px, 144 dpi)`, capped at 6,000 px, and are flagged mixed. Standard fonts come from `pdfjs-dist/standard_fonts`; nothing is fetched.
+- **Several images (decision 3A):** natural order of the uploaded names.
+- **Pages:** Upload page with drop zone and a Browse button (dragging is optional), per-file list and errors. Processing page polls every second, announces progress in a live region, shows each slide with its flags, and marks later stages as not yet available. No WebGL.
+- **Tests:** 74 unit tests (`npm test`), all fixtures built inside the tests. 53 HTTP smoke checks, including traversal ids, a renamed executable, the size cap, a rejected file mix, the full upload → extract → slide flow and both pages rendering.
+
+### Sample measurement (`npm run test:extract`, 2026-09-22)
+
+`Skin_Barrier_Alchemy.pptx`, 26.8 MB: 15 slides, 15 with a usable picture, 0 mixed, 0 hidden, 0 with speaker notes. Pictures 1376 × 768 (median; max 1672 × 941) on a 16,256,000 × 9,144,000 EMU slide. 32.9 MB of normalized PNG. Structure 14 ms, media inflate 4 ms, decode 1,633 ms.
 
 ## T1 features and how they were verified
 
@@ -91,8 +125,22 @@ Must still be visible and usable:
 | 2026-09-22 | Threads line color `#B2C5DD` / `#7696BD` (light/dark), opacity 0.40 on canvas and 0.30 on surface (dark 0.36 / 0.30)                          | Highest opacity that keeps muted text at WCAG AA with margin (limits 0.46/0.35 light, 0.425/0.35 dark) | Navy lines (limit 0.125, nearly invisible)           |
 | 2026-09-22 | Demo slide scales to 0.9 while separated                                                                                                      | The 36 px text lift otherwise leaves the frame and hits the label above                                | Smaller lift (breaks the storyboard), clipping       |
 | 2026-09-22 | Magnet on the hero CTA only                                                                                                                   | In the compact navbar the pull left 2.1 px to the pill edge and broke its silhouette                   | Navbar CTA magnet                                    |
+| 2026-09-22 | Reduced motion keeps the navbar always visible                                                                                                | Owner's choice; the old override never applied because of specificity                                  | Hiding instantly                                     |
+| 2026-09-22 | PDF via pdfjs-dist + @napi-rs/canvas; a single full-page picture is taken losslessly, everything else rendered at ≥1600 px                    | Owner decision 1A; lossless extraction proved workable in pdf.js                                       | Python worker with pypdfium2 in T2                   |
+| 2026-09-22 | Dependencies fflate, fast-xml-parser, sharp (direct), pdfjs-dist, @napi-rs/canvas                                                             | Owner decision 2                                                                                       | —                                                    |
+| 2026-09-22 | Several images ordered by natural file-name order; drag to reorder moves to T7                                                                | Owner decision 3A                                                                                      | Upload order                                         |
+| 2026-09-22 | Non-single-image PPTX slides: largest picture extracted and flagged mixed; T3 keeps their native text and shapes                              | Owner decision 4A                                                                                      | Rejecting the deck                                   |
+| 2026-09-22 | Zip limits 500 MB inflated total, 100 MB per entry, 2,000 entries, checked while inflating                                                    | Owner's safeguard list; comfortably above a real deck                                                  | Checking declared sizes only                         |
+| 2026-09-22 | Any XML DOCTYPE/ENTITY is refused outright                                                                                                    | fast-xml-parser expands internal DOCTYPE entities by default; OOXML never has a DOCTYPE                | processEntities off (breaks `&amp;` decoding)        |
 
 ## Known issues
+
+- **Speaker notes are only covered by synthetic tests.** The one real sample has no notes. Check a deck with notes before relying on them in T3.
+- **NotebookLM pictures are low resolution:** 1376 px wide on a 17.8-inch slide is about 77 dpi. Detection in T3 works on that, nothing upstream can improve it.
+- A PPTX slide without any usable picture is skipped rather than kept as an empty slide, so slide numbers shift after it. The sample has none; revisit if a real deck shows one.
+- Extraction runs inside the Next process and its cancel map is in memory: restarting the server leaves a running job stuck at "extracting". Acceptable for T2; the worker in T4 is the place for a real queue.
+- Job folders are never cleaned up automatically. Delete them from `data/jobs/` or with `DELETE /api/jobs/[id]`.
+- `npm install` warns that `unrs-resolver`'s install script is not covered by `allowScripts`; approve it with `npm approve-scripts unrs-resolver` if lint misbehaves on a fresh clone.
 
 - **Login rate limit is one global bucket** (`createLoginLimiter` in `lib/auth/core.ts`). Anyone can lock sign-in for 60 seconds. Acceptable for loopback-only use; **must be replaced with a per-IP limiter (using a trusted proxy header) before any deploy.**
 - There is no `.env.local` yet. The owner runs `npm run setup` in PowerShell themselves. Process environment variables override `.env.local` in Next.js, so stale `ACCESS_CODE`/`SESSION_SECRET` in the Windows environment must be removed first.
@@ -107,6 +155,6 @@ Must still be visible and usable:
 
 ## Next steps
 
-1. Owner answers the five decisions in `docs/T2-plan.md` section 9 and puts a NotebookLM sample into `samples/`. Do not start T2 code before approval.
-2. Owner runs `npm run setup` and checks reduced motion with the checklist above.
-3. Implement T2 in the commits listed in the plan.
+1. Owner reviews T2 on the laptop: upload the sample on `/workspace`, watch the Processing page, and ideally try a deck with speaker notes and a PDF export.
+2. Owner runs `npm run setup` (if not done) and checks reduced motion with the checklist above.
+3. Plan T3 (Gemini detection) in `docs/T3-plan.md`, including the mixed-slide rule now in `docs/plan.md`. Verify free-tier model availability first. Do not start T3 code before approval.
