@@ -1,0 +1,18 @@
+:root {
+  --canvas:#fff; --surface:#f3f5f8; --border:#cdd4de; --ink:#142b4a; --muted:#58677b;
+  --accent:#142b4a; --on-accent:#fff; --focus:#315e94; --error:#ac3443; --warning:#8a5518;
+  --glass:rgb(255 255 255 / .93); --nav-active:#e9eef5;
+  --sample-bg:#eaf0f7; --sample-panel:#d3dfed; --sample-arch:#b2c5dd; --sample-mid:#7696bd; --sample-ink:#142b4a; --sample-muted:#58677b; --selection:#426a9b;
+  --font-sans:"Segoe UI",Arial,sans-serif;
+  --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-6:24px; --space-8:32px; --space-12:48px; --space-16:64px; --space-24:96px;
+  --radius-control:8px; --radius-card:12px; --radius-pill:999px;
+  --shadow-nav:0 8px 28px rgb(20 43 74 / .07);
+  --motion-feedback:140ms; --motion-panel:220ms; --motion-page:320ms; --motion-hero:800ms; --motion-stagger:60ms;
+  --ease:cubic-bezier(.22,1,.36,1);
+  color-scheme:light;
+}
+[data-theme="dark"] {
+  --canvas:#101c2e; --surface:#192a42; --border:#41536d; --ink:#f7f9fc; --muted:#b4c1d3;
+  --accent:#e2eaf5; --on-accent:#142b4a; --focus:#a8c9f1; --error:#ffb4bd; --warning:#eac18e;
+  --glass:rgb(16 28 46 / .94); --nav-active:#253b58; --shadow-nav:0 8px 28px rgb(0 0 0 / .12);color-scheme:dark;
+}
