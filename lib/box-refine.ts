@@ -12,6 +12,9 @@
  * color, only pixels near that color count as ink, and a result that grows
  * or moves too much is refused rather than trusted.
  *
+ * A refined box may only shrink: it is clamped inside Gemini's box, so ink
+ * from an ornament just outside can never pull an edge outwards.
+ *
  * This only moves box edges, from raw pixels, and never looks at or changes
  * the text. Pure: raw pixels in, a box out; the caller decodes the image.
  */
@@ -161,11 +164,61 @@ function keepOverlapping(runs: Array<[number, number]>, low: number, high: numbe
   });
 }
 
+/**
+ * The colour that appears most often inside the box, rounded into 16 levels
+ * per channel. Used when the ring around the box is not background at all,
+ * for instance when Gemini's box crosses the edge of a card.
+ */
+function insideMode(image: RawImage, rect: Rect): { color: number[]; noise: number } {
+  const counts = new Map<number, { count: number; sums: number[] }>();
+  for (let y = rect.y0; y < rect.y1; y += 1) {
+    for (let x = rect.x0; x < rect.x1; x += 1) {
+      const offset = (y * image.width + x) * image.channels;
+      const channels = [0, 1, 2].map((c) => image.data[offset + Math.min(c, image.channels - 1)]);
+      const key = channels.reduce((value, channel) => value * 16 + (channel >> 4), 0);
+      const bin = counts.get(key) ?? { count: 0, sums: [0, 0, 0] };
+      bin.count += 1;
+      for (let c = 0; c < 3; c += 1) bin.sums[c] += channels[c];
+      counts.set(key, bin);
+    }
+  }
+  let best = { count: 0, sums: [0, 0, 0] };
+  for (const bin of counts.values()) if (bin.count > best.count) best = bin;
+  const color = best.count ? best.sums.map((sum) => Math.round(sum / best.count)) : [0, 0, 0];
+  // How much that colour varies where it appears: the median difference of
+  // every pixel in the box, which is background for most of the box.
+  const differences: number[] = [];
+  for (let y = rect.y0; y < rect.y1; y += 1) {
+    for (let x = rect.x0; x < rect.x1; x += 1) {
+      differences.push(difference(image, (y * image.width + x) * image.channels, color));
+    }
+  }
+  differences.sort((a, b) => a - b);
+  return { color, noise: 2 * (differences[Math.floor(differences.length / 2)] ?? 0) };
+}
+
 export function refineBox(
   image: RawImage,
   box: Box2d,
   textColor?: string,
   options: RefineOptions = REFINE_DEFAULTS,
+): RefineResult {
+  const first = refineWith(image, box, textColor, options, "ring");
+  // A box that crosses a card edge has no usable ring; the colour that fills
+  // most of the box itself is the better guess there.
+  if (!first.refined && first.reason === "low-contrast") {
+    const second = refineWith(image, box, textColor, options, "inside");
+    if (second.refined) return second;
+  }
+  return first;
+}
+
+function refineWith(
+  image: RawImage,
+  box: Box2d,
+  textColor: string | undefined,
+  options: RefineOptions,
+  backgroundFrom: "ring" | "inside",
 ): RefineResult {
   const original = toPixels(box, image);
   const originalWidth = original.x1 - original.x0;
@@ -184,11 +237,18 @@ export function refineBox(
   // Ink differs from the background by more than the background differs from
   // itself. Twice the 75th percentile of the ring, not the 95th: text from a
   // neighbouring block often touches the ring and must not raise the bar.
-  const { color: background, ring } = ringMedian(image, search);
-  const ringDifferences = ring
-    .map((offset) => difference(image, offset, background))
-    .sort((a, b) => a - b);
-  const noise = 2 * (ringDifferences[Math.floor(ringDifferences.length * 0.75)] ?? 0);
+  let background: number[];
+  let noise: number;
+  if (backgroundFrom === "inside") {
+    ({ color: background, noise } = insideMode(image, original));
+  } else {
+    const ringResult = ringMedian(image, search);
+    background = ringResult.color;
+    const ringDifferences = ringResult.ring
+      .map((offset) => difference(image, offset, background))
+      .sort((a, b) => a - b);
+    noise = 2 * (ringDifferences[Math.floor(ringDifferences.length * 0.75)] ?? 0);
+  }
   const threshold = Math.max(options.minContrast, noise + options.noiseHeadroom);
 
   const contrast = new Uint8Array(width * height);
@@ -264,11 +324,18 @@ export function refineBox(
   );
   if (columns.length === 0) return { refined: false, box, reason: "low-contrast" };
 
+  // Shrink only (owner decision 2026-09-22): the result is clamped inside
+  // Gemini's box, so ink just outside it, an ornament in the text's own
+  // colour for instance, can never pull an edge outwards.
   const ink: Rect = {
-    x0: clamp(search.x0 + columns[0][0] - options.padding, 0, image.width),
-    y0: clamp(search.y0 + top - options.padding, 0, image.height),
-    x1: clamp(search.x0 + columns[columns.length - 1][1] + options.padding, 0, image.width),
-    y1: clamp(search.y0 + bottom + options.padding, 0, image.height),
+    x0: clamp(search.x0 + columns[0][0] - options.padding, original.x0, original.x1),
+    y0: clamp(search.y0 + top - options.padding, original.y0, original.y1),
+    x1: clamp(
+      search.x0 + columns[columns.length - 1][1] + options.padding,
+      original.x0,
+      original.x1,
+    ),
+    y1: clamp(search.y0 + bottom + options.padding, original.y0, original.y1),
   };
   const inkWidth = ink.x1 - ink.x0;
   const inkHeight = ink.y1 - ink.y0;

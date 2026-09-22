@@ -340,25 +340,41 @@ ground truth was written on, x maps 1.001 to 1 with no offset, the axes are
 not swapped), but a systematic error. Boxes sit about 1.3% of the slide
 height too high, more so lower on the slide (y fits 0.974 x truth), and are
 about 15% too wide on both sides while their centres are not off
-horizontally. Height is off by chance, not systematically (x0.94 ± 0.19).
+horizontally. Height is off by chance, not systematically (x0.94 +/- 0.19).
 
 `lib/box-refine.ts` corrects this from the slide's own pixels, as a pure
 function: search a little further up and down than sideways, estimate the
 background from the search area's edge, keep pixels near Gemini's reported
 text color (plain contrast when that color matches almost nothing), drop long
 frame lines, and keep the text lines Gemini's box mostly covers. A result
-that is too small, that grows past 1.05 x the width or 1.6 x the height, or
-that moves too far is refused, and Gemini's box is kept with the reason. Text
-is never read or changed.
+that is too small or that moves too far is refused, and Gemini's box is kept
+with the reason. Text is never read or changed.
 
-Measured from the cache (0 requests), IoU on the same pairs: 0.619 to 0.693
-overall; slide 12 0.617 to 0.736, slide 14 0.838 to 0.862, slide 4 0.531 to
-0.537 (8 of 10 boxes kept, because they cross a card edge and the background
-estimate is then unreliable), slide 1 0.887 to 0.781, where gold runes share
-the title's own color. The export uses refined boxes; blocks that kept
-Gemini's box are flagged for the Review page in T7. Whether to skip
-refinement on slides like 1 is a decision for after the full comparison, on
-more than 36 pairs.
+Two rules follow the owner's decision of 2026-09-22:
+
+- **Shrink only.** The refined box is clamped inside Gemini's box, so ink
+  just outside it can never pull an edge outwards. This is what fixed slide
+  1, where gold runes share the title's own colour.
+- **A second estimate for boxes crossing a card edge.** When the ring around
+  the box is half card and half slide, the ring estimate finds no ink and
+  refinement is refused as `low-contrast`; a second pass then takes the
+  colour filling most of the box itself as the background. This is what
+  fixed slide 4.
+
+Measured from the cache (0 requests), IoU on the same 36 pairs, Gemini ->
+refined: overall 0.619 -> 0.671; slide 1 0.887 -> 0.884, slide 4 0.531 ->
+0.581 (9 of 10 boxes now refined, 1 kept), slide 12 0.617 -> 0.675, slide 14
+0.838 -> 0.869. Letting boxes grow scored higher on slides 12 and 14 (0.736
+and 0.862, overall 0.693) but cost slide 1 (0.781); shrink-only is the
+accepted trade-off. The export uses refined boxes; blocks that kept Gemini's
+box are flagged for the Review page in T7.
+
+**Bias correction is not applied.** The numbers above are from one model at
+one resolution. After the full comparison, measure the vertical shift, the y
+slope and the width ratio per model and per resolution. Only add a
+correction in code if the direction and magnitude are consistent across
+those runs, only enable it when there are enough matched pairs to support
+it, and re-verify it with `test:detect` before keeping it.
 
 ### 7.9 NotebookLM watermark (owner decision 2026-09-22)
 

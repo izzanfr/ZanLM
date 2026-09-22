@@ -69,12 +69,12 @@ function geminiLike(box: Box2d, upPixels: number, widen: number): Box2d {
   return [ymin - up, xmin - extra, ymax - up, xmax + extra];
 }
 
-test("a shifted, too-wide box is pulled onto the text", () => {
+test("a too-wide box is trimmed to the text", () => {
   const image = slide([20, 30, 60]);
   textLine(image, 300, 400, 500, 28, [240, 200, 120]);
   textLine(image, 300, 440, 420, 28, [240, 200, 120]);
   const exact = truth(300, 400, 800, 468);
-  const rough = geminiLike(exact, 12, 1.2);
+  const rough = geminiLike(exact, 0, 1.25);
   const before = intersectionOverUnion(rough, exact);
   const result = refineBox(image, rough);
   assert.ok(result.refined, result.refined ? "" : result.reason);
@@ -83,11 +83,32 @@ test("a shifted, too-wide box is pulled onto the text", () => {
   assert.ok(after > before + 0.1, `IoU ${before.toFixed(2)} -> ${after.toFixed(2)}`);
 });
 
+test("the result never reaches outside Gemini's box", () => {
+  // Gemini's box sits 12 px too high, the way the sample deck's do. Shrinking
+  // only, the refined box cannot chase the text downwards, but it must never
+  // grow past what Gemini gave, and it must not make the box worse.
+  const image = slide([20, 30, 60]);
+  textLine(image, 300, 400, 500, 28, [240, 200, 120]);
+  const exact = truth(300, 400, 800, 428);
+  const rough = geminiLike(exact, 12, 1.2);
+  const result = refineBox(image, rough, "#F0C878");
+  const inside =
+    result.box[0] >= rough[0] - 1e-6 &&
+    result.box[1] >= rough[1] - 1e-6 &&
+    result.box[2] <= rough[2] + 1e-6 &&
+    result.box[3] <= rough[3] + 1e-6;
+  assert.ok(inside, "the refined box stays within Gemini's box");
+  assert.ok(
+    intersectionOverUnion(result.box, exact) >= intersectionOverUnion(rough, exact) - 0.01,
+    "a shifted box is not made worse",
+  );
+});
+
 test("dark text on a light slide works the same way", () => {
   const image = slide([235, 232, 228]);
   textLine(image, 150, 230, 450, 24, [30, 30, 30]);
   const exact = truth(150, 230, 600, 254);
-  const result = refineBox(image, geminiLike(exact, 10, 1.15));
+  const result = refineBox(image, geminiLike(exact, 0, 1.2));
   assert.ok(result.refined);
   assert.ok(intersectionOverUnion(result.box, exact) > 0.8);
 });
@@ -96,7 +117,7 @@ test("a textured background does not read as text", () => {
   const image = slide([200, 180, 140], 22);
   textLine(image, 400, 300, 380, 26, [40, 30, 20]);
   const exact = truth(400, 300, 780, 326);
-  const result = refineBox(image, geminiLike(exact, 8, 1.2));
+  const result = refineBox(image, geminiLike(exact, 0, 1.25));
   assert.ok(result.refined, result.refined ? "" : result.reason);
   assert.ok(intersectionOverUnion(result.box, exact) > 0.8);
 });
@@ -125,7 +146,7 @@ test("frame lines around a card are ignored", () => {
   fill(image, 830, 250, 833, 500, [120, 90, 40]); // right frame
   textLine(image, 320, 360, 440, 24, [30, 25, 20]);
   const exact = truth(320, 360, 760, 384);
-  const result = refineBox(image, geminiLike(exact, 6, 1.2));
+  const result = refineBox(image, geminiLike(exact, 0, 1.25));
   assert.ok(result.refined);
   assert.ok(intersectionOverUnion(result.box, exact) > 0.8);
 });
@@ -137,7 +158,7 @@ test("ornaments in another color are ignored when the text color is known", () =
   fill(image, 420, 382, 740, 386, [200, 160, 60]);
   fill(image, 766, 395, 776, 430, [200, 160, 60]);
   const exact = truth(400, 400, 760, 426);
-  const rough = geminiLike(exact, 8, 1.1);
+  const rough = geminiLike(exact, 0, 1.2);
   const withColor = refineBox(image, rough, "#F5F5F5");
   assert.ok(withColor.refined, withColor.refined ? "" : withColor.reason);
   assert.ok(intersectionOverUnion(withColor.box, exact) > 0.8);
@@ -170,6 +191,24 @@ test("the text color is read from Gemini's hex value", async () => {
   assert.deepEqual(parseHexColor("#FFAA00"), [255, 170, 0]);
   assert.equal(parseHexColor("orange"), null);
   assert.equal(parseHexColor(undefined), null);
+});
+
+test("a box that crosses a card edge falls back to the colour inside it", () => {
+  // Left half: a parchment card with dark text. Right half: the dark slide
+  // behind it. The ring around such a box is half card, half slide, so the
+  // ring estimate finds no ink; the colour filling most of the box does.
+  const image = slide([18, 40, 30]);
+  fill(image, 200, 300, 700, 500, [226, 214, 182]);
+  textLine(image, 250, 380, 380, 24, [35, 30, 25]);
+  const exact = truth(250, 380, 630, 404);
+  // Gemini's box runs past the card edge, the way it does on sample slide 4.
+  const rough: Box2d = [(378 / H) * 1000, (240 / W) * 1000, (406 / H) * 1000, (860 / W) * 1000];
+  const result = refineBox(image, rough, "#231E19");
+  assert.ok(result.refined, result.refined ? "" : result.reason);
+  assert.ok(
+    intersectionOverUnion(result.box, exact) > intersectionOverUnion(rough, exact) + 0.2,
+    "the box is pulled back onto the card's text",
+  );
 });
 
 test("no text inside the box keeps Gemini's box and says why", () => {
