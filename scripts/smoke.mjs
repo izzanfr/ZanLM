@@ -155,6 +155,39 @@ async function checkJobRoutes({ origin, cookie, post, check }) {
     "slide image checks session",
   );
 
+  // The pages have to render for real, not just the API.
+  const uploadPage = await fetch(`${origin}/workspace`, { headers: { Cookie: cookie } });
+  check(uploadPage.status, 200, "upload page loads");
+  assert.ok(
+    (await uploadPage.text()).includes("Drop your file here"),
+    "upload page shows the zone",
+  );
+  assertions++;
+
+  const jobPage = await fetch(`${origin}/workspace/jobs/${id}`, { headers: { Cookie: cookie } });
+  check(jobPage.status, 200, "processing page loads");
+  const jobHtml = await jobPage.text();
+  assert.ok(jobHtml.includes("Separating your slides"), "processing page shows its heading");
+  assertions++;
+  assert.ok(jobHtml.includes("Slides are ready"), "processing page shows the finished state");
+  assertions++;
+
+  check(
+    (
+      await fetch(`${origin}/workspace/jobs/not-a-real-id`, {
+        headers: { Cookie: cookie },
+        redirect: "manual",
+      })
+    ).status,
+    404,
+    "processing page rejects a malformed job id",
+  );
+  check(
+    (await fetch(`${origin}/workspace/jobs/${id}`, { redirect: "manual" })).status,
+    307,
+    "processing page redirects without a session",
+  );
+
   const removed = await fetch(`${origin}/api/jobs/${id}`, {
     method: "DELETE",
     headers: { Cookie: cookie, Origin: origin },
