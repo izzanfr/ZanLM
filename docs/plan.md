@@ -21,17 +21,17 @@ Current status: T0 done, T1 in progress (see `docs/HANDOFF.md`).
 
 The supplied brief asks for a plan, implementation, verification, small commits, updated handoff and a stop at each phase. The user authorized T1 with “oke lanjutkan buat aplikasinya”. Do not treat T1 as authorization to claim later conversion phases are complete.
 
-| Phase | Scope | Completion criteria |
-| --- | --- | --- |
-| T0 | Tokens, six screens, navigation options, storyboard and logo | Approved direction and spacing |
-| T1 | Next.js scaffold; dictionary; access-code/session auth; proxy; environment template; landing/navigation/motion; handoff | Login/logout, API guards, responsive UI, reduced-motion paths, lint/build/tests |
-| T2 | Validated PPTX/PDF/PNG/JPG upload and extraction, ordered slide images, notes, processing without AI | Actual NotebookLM sample extraction, page/slide caps, magic-byte validation |
-| T3 | Gemini structured detection, fallback logic, geometry safeguards, initial editable-text export over source images | Exact text and injection tests; shared layout; exact EMU dimensions |
-| T4 | Python worker, text inpainting | Clean backgrounds, actual GPU/CPU verification |
-| T5 | Object segmentation | SAM 2 masks, rembg/crop/background fallback, quality flags |
-| T6 | Native panel shapes | Editable panel color/transparency |
-| T7 | Full review and fixes, reprocess, QA | Saved manual corrections exported; measured similarity |
-| T8 | Optional native tables and flat SVG icons | Requires a later scope decision |
+| Phase | Scope                                                                                                                   | Completion criteria                                                             |
+| ----- | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| T0    | Tokens, six screens, navigation options, storyboard and logo                                                            | Approved direction and spacing                                                  |
+| T1    | Next.js scaffold; dictionary; access-code/session auth; proxy; environment template; landing/navigation/motion; handoff | Login/logout, API guards, responsive UI, reduced-motion paths, lint/build/tests |
+| T2    | Validated PPTX/PDF/PNG/JPG upload and extraction, ordered slide images, notes, processing without AI                    | Actual NotebookLM sample extraction, page/slide caps, magic-byte validation     |
+| T3    | Gemini structured detection, fallback logic, geometry safeguards, initial editable-text export over source images       | Exact text and injection tests; shared layout; exact EMU dimensions             |
+| T4    | Python worker, text inpainting                                                                                          | Clean backgrounds, actual GPU/CPU verification                                  |
+| T5    | Object segmentation                                                                                                     | SAM 2 masks, rembg/crop/background fallback, quality flags                      |
+| T6    | Native panel shapes                                                                                                     | Editable panel color/transparency                                               |
+| T7    | Full review and fixes, reprocess, QA                                                                                    | Saved manual corrections exported; measured similarity                          |
+| T8    | Optional native tables and flat SVG icons                                                                               | Requires a later scope decision                                                 |
 
 ## Non-negotiable pipeline requirements
 

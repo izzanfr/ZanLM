@@ -38,14 +38,17 @@ Windows, Node.js 24, npm.
 npm install
 npm run setup        # interactive; creates .env.local only if it does not exist
 npm run dev          # http://127.0.0.1:3000
+npm run format       # prettier --write .
+npm run format:check # prettier --check .
 npm run lint
 npm run typecheck
 npm test             # node --test unit tests
+npm run check        # format:check + lint + typecheck + test
 npm run build
 npm run test:smoke   # needs a build; own server on port 3108 with throwaway credentials
 ```
 
-Checks before every commit: `lint`, `typecheck`, `test`, `build`, and `test:smoke` when auth or routes change. The worker does not exist yet.
+Checks before every commit: `npm run check` and `npm run build`, plus `npm run test:smoke` when auth or routes change. The worker does not exist yet.
 
 `next dev` writes to `.next/dev` and `next build` writes to `.next`, so both can run at the same time. Never stop a server or process you did not start yourself.
 
@@ -88,9 +91,9 @@ Source: `design/tokens.json` (design reference) and `app/tokens.css` (runtime CS
 
 Install only through the official CLI (shadcn registry at `https://reactbits.dev/r/<Name>-TS-TW`). Never edit vendor files; wrap them instead. `components/reactbits/**` is excluded from ESLint.
 
-| Component | File | Used by | Notes |
-| --- | --- | --- | --- |
-| BlurText | `components/reactbits/BlurText.tsx` | `components/hero-title.tsx` (dynamic, reduced-motion aware) | Verified identical to official `BlurText-TS-TW` on 2026-09-22 |
+| Component | File                                | Used by                                                     | Notes                                                         |
+| --------- | ----------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------- |
+| BlurText  | `components/reactbits/BlurText.tsx` | `components/hero-title.tsx` (dynamic, reduced-motion aware) | Verified identical to official `BlurText-TS-TW` on 2026-09-22 |
 
 ## Folder structure
 
@@ -110,6 +113,8 @@ proxy.ts             redirects unauthenticated /workspace requests
 ```
 
 ## Code conventions
+
+- **Never write minified or compressed source.** One statement per line, readable JSX and CSS. All code is formatted by Prettier (`.prettierrc.json`, width 100, LF line endings enforced by `.gitattributes`); `npm run format:check` must pass. Only generated or vendored files are listed in `.prettierignore`.
 
 - Put decision logic in pure functions that can be tested without the SDK or Next runtime; keep SDK calls in thin wrappers.
 - Validate every external input (request bodies, AI output, env) with Zod.

@@ -4,17 +4,17 @@ Last updated: 2026-09-22. Read `AGENTS.md` first; the full plan is in `docs/plan
 
 ## Phase status
 
-| Phase | Status | Last commit | Notes |
-| --- | --- | --- | --- |
-| T0 Design | Done | `84e844f` | Tokens, six mockups, three navbar options, storyboard and logo in `design/` and `docs/T0-design.md`. Navbar A chosen by the owner. |
-| T1 Foundation | In progress | `84e844f` | Auth, sessions, proxy, API guards, i18n dictionary, navbar, page transition and a first landing are done. Remaining: see "Next steps". |
-| T2 Upload and extraction | Not started | — | |
-| T3 Gemini detection and text export | Not started | — | |
-| T4 Worker and text inpainting | Not started | — | |
-| T5 Object segmentation | Not started | — | |
-| T6 Native panel shapes | Not started | — | |
-| T7 Review and fix, QA | Not started | — | |
-| T8 Tables and SVG icons (optional) | Not started | — | |
+| Phase                               | Status      | Last commit | Notes                                                                                                                                  |
+| ----------------------------------- | ----------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| T0 Design                           | Done        | `84e844f`   | Tokens, six mockups, three navbar options, storyboard and logo in `design/` and `docs/T0-design.md`. Navbar A chosen by the owner.     |
+| T1 Foundation                       | In progress | `84e844f`   | Auth, sessions, proxy, API guards, i18n dictionary, navbar, page transition and a first landing are done. Remaining: see "Next steps". |
+| T2 Upload and extraction            | Not started | —           |                                                                                                                                        |
+| T3 Gemini detection and text export | Not started | —           |                                                                                                                                        |
+| T4 Worker and text inpainting       | Not started | —           |                                                                                                                                        |
+| T5 Object segmentation              | Not started | —           |                                                                                                                                        |
+| T6 Native panel shapes              | Not started | —           |                                                                                                                                        |
+| T7 Review and fix, QA               | Not started | —           |                                                                                                                                        |
+| T8 Tables and SVG icons (optional)  | Not started | —           |                                                                                                                                        |
 
 History note: the previous agent (ChatGPT) built T0 and most of T1 without git and stopped without a handoff. Commit `84e844f` is that work imported as-is. An audit on 2026-09-22 verified: lint, typecheck, 7 unit tests, production build and 22 HTTP smoke checks pass; navbar compact/hide/show on scroll and the mobile menu (stagger, focus return, scroll lock) work in a browser. Dark mode and reduced motion were checked in code only, not visually.
 
@@ -32,16 +32,16 @@ History note: the previous agent (ChatGPT) built T0 and most of T1 without git a
 
 ## Decision log
 
-| Date | Decision | Reason | Rejected alternatives |
-| --- | --- | --- | --- |
-| 2026-09-22 | Product name ZanLM (replaces working name "Urai Slide") | Owner's choice | Urai Slide |
-| 2026-09-22 | White/navy palette, light theme default, navy dark theme supported | Owner's choice during T0 revisions | Charcoal/lime; dark as default |
-| 2026-09-22 | Navbar option A, Floating studio pill | Owner's explicit choice; best continuity between marketing and work pages | B Compact command pill; C Split capsule |
-| 2026-09-22 | Landing animation option (c): full storyboard demo (pinned on desktop, label phase, reassembly phase), one subtle animated React Bits background in the hero (optionally Sign in), magnet or spotlight effect on the main CTA | Owner wants a lively, animated site with React Bits + GSAP | (a) keep static; (b) storyboard without a background |
-| 2026-09-22 | React Bits components are installed only via the official CLI; BlurText kept | Existing BlurText is byte-identical to the official `BlurText-TS-TW` registry file | Replacing BlurText |
-| 2026-09-22 | Git initialized; previous work committed as a baseline before any change | No history existed | Rewriting history per feature |
-| 2026-09-22 | Code must be formatted with Prettier; no minified source | Previous code was written as long single lines | Leaving code as-is |
-| 2026-09-22 | Tailwind: map design tokens to `@theme`; new components use Tailwind; legacy CSS migrates only when its file is touched | Avoid a risky full rewrite | Rewriting all CSS now; dropping Tailwind |
+| Date       | Decision                                                                                                                                                                                                                      | Reason                                                                             | Rejected alternatives                                |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| 2026-09-22 | Product name ZanLM (replaces working name "Urai Slide")                                                                                                                                                                       | Owner's choice                                                                     | Urai Slide                                           |
+| 2026-09-22 | White/navy palette, light theme default, navy dark theme supported                                                                                                                                                            | Owner's choice during T0 revisions                                                 | Charcoal/lime; dark as default                       |
+| 2026-09-22 | Navbar option A, Floating studio pill                                                                                                                                                                                         | Owner's explicit choice; best continuity between marketing and work pages          | B Compact command pill; C Split capsule              |
+| 2026-09-22 | Landing animation option (c): full storyboard demo (pinned on desktop, label phase, reassembly phase), one subtle animated React Bits background in the hero (optionally Sign in), magnet or spotlight effect on the main CTA | Owner wants a lively, animated site with React Bits + GSAP                         | (a) keep static; (b) storyboard without a background |
+| 2026-09-22 | React Bits components are installed only via the official CLI; BlurText kept                                                                                                                                                  | Existing BlurText is byte-identical to the official `BlurText-TS-TW` registry file | Replacing BlurText                                   |
+| 2026-09-22 | Git initialized; previous work committed as a baseline before any change                                                                                                                                                      | No history existed                                                                 | Rewriting history per feature                        |
+| 2026-09-22 | Code must be formatted with Prettier; no minified source                                                                                                                                                                      | Previous code was written as long single lines                                     | Leaving code as-is                                   |
+| 2026-09-22 | Tailwind: map design tokens to `@theme`; new components use Tailwind; legacy CSS migrates only when its file is touched                                                                                                       | Avoid a risky full rewrite                                                         | Rewriting all CSS now; dropping Tailwind             |
 
 ## Known issues
 

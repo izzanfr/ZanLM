@@ -44,15 +44,15 @@ On mobile, variants converge to brand + labeled Menu button, then a full-width m
 
 ## Landing storyboard
 
-| Beat | Trigger | Visual | Timing / fallback |
-| --- | --- | --- | --- |
-| Establish | Page entry | Pill fades in; headline rises 12 px in two word groups | 800 ms total, 60 ms stagger; static when reduced motion |
-| Reveal | Hero visible | A fine slide-outline motif on white; no glow or gradient | One decorative background maximum; paused offscreen or hidden |
-| Flattened | Demo enters viewport | One intact example slide and Original label | Fully readable before animation |
-| Separate | Scroll progress 0–35% | Background stays; panels lift 12 px; objects 24 px; text 36 px | Transform/opacity only; bounded pinned scene on spacious desktop |
-| Explain | Scroll progress 35–70% | Labels identify native text, image objects, shapes and rebuilt background | Captions remain visible independently of movement |
-| Reassemble | Scroll progress 70–100% | Layers settle beside the original; selection boxes reveal editable parts | Final comparison persists; replay optional |
-| Continue | Demo exits | Three-step workflow, limitations and final conversion CTA | No pinning on narrow/mobile layouts |
+| Beat       | Trigger                 | Visual                                                                    | Timing / fallback                                                |
+| ---------- | ----------------------- | ------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| Establish  | Page entry              | Pill fades in; headline rises 12 px in two word groups                    | 800 ms total, 60 ms stagger; static when reduced motion          |
+| Reveal     | Hero visible            | A fine slide-outline motif on white; no glow or gradient                  | One decorative background maximum; paused offscreen or hidden    |
+| Flattened  | Demo enters viewport    | One intact example slide and Original label                               | Fully readable before animation                                  |
+| Separate   | Scroll progress 0–35%   | Background stays; panels lift 12 px; objects 24 px; text 36 px            | Transform/opacity only; bounded pinned scene on spacious desktop |
+| Explain    | Scroll progress 35–70%  | Labels identify native text, image objects, shapes and rebuilt background | Captions remain visible independently of movement                |
+| Reassemble | Scroll progress 70–100% | Layers settle beside the original; selection boxes reveal editable parts  | Final comparison persists; replay optional                       |
+| Continue   | Demo exits              | Three-step workflow, limitations and final conversion CTA                 | No pinning on narrow/mobile layouts                              |
 
 Reduced-motion users receive a static exploded diagram plus before/after comparison. Do not rely on movement to communicate any capability. Planned GSAP implementation uses useGSAP cleanup and matchMedia. A React Bits component will be verified against its official registry before selection/install in T1; none has been installed or claimed verified in T0.
 
@@ -63,6 +63,7 @@ Validate at 375, 768, 1024 and 1440 px during implementation. At 375 px the hero
 ## Product honesty
 
 Use these English limitations in the app:
+
 - Illustrations are editable image objects, not editable artwork.
 - Decorative fonts are substituted. Glow, emboss, and gradient text effects are lost.
 - Repaired background areas are inferred and may differ from the original.
