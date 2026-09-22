@@ -80,8 +80,9 @@ test("style boundaries follow weight and italic, not color", () => {
     { text: " a day", weight: "regular", italic: false },
   ];
   assert.deepEqual(
+    // Each boundary sits at the first visible character of the next run.
     styleBoundaries(block("Note: apply twice a day", [0, 0, 1, 1], "body", runs)),
-    [5, 12, 17],
+    [6, 12, 18],
   );
   const colorOnly = [
     { text: "Ramuan", weight: "bold", italic: false },
@@ -107,17 +108,64 @@ test("a slide score counts runs, roles, misses and extras", () => {
     block("Extra", [700, 700, 750, 800]),
   ];
   const score = scoreSlide(truth, detected);
-  assert.equal(score.matched, 2);
+  // The watermark and its match are scored apart, so the content has one
+  // match, one miss and one extra.
+  assert.equal(score.matched, 1);
   assert.equal(score.missed, 1);
   assert.equal(score.extra, 1);
   assert.deepEqual(score.runBoundaries, { expected: 1, found: 1, correct: 1 });
-  assert.deepEqual(score.roles, {
-    tableCells: 1,
-    tableCellsKept: 1,
-    watermarks: 1,
-    watermarksKept: 0,
-  });
+  assert.deepEqual(score.roles, { tableCells: 1, tableCellsKept: 1 });
+  assert.deepEqual(score.watermarks, { truth: 1, found: 1, roleKept: 0 });
   assert.ok(score.meanIou !== null && score.meanIou > 0.9);
+});
+
+test("a space at a run edge does not move the boundary", () => {
+  const truthRuns = [
+    { text: "Kondisi:", weight: "bold", italic: false },
+    { text: " Kekurangan", weight: "regular", italic: false },
+  ];
+  const detectedRuns = [
+    { text: "Kondisi: ", weight: "bold", italic: false },
+    { text: "Kekurangan", weight: "regular", italic: false },
+  ];
+  const text = "Kondisi: Kekurangan";
+  assert.deepEqual(styleBoundaries(block(text, [0, 0, 1, 1], "body", truthRuns)), [9]);
+  assert.deepEqual(styleBoundaries(block(text, [0, 0, 1, 1], "body", detectedRuns)), [9]);
+  // The same holds for a line break at the edge.
+  const cell = "SENSITIVE\n(Abu-abu)";
+  const before = [
+    { text: "SENSITIVE", weight: "bold", italic: false },
+    { text: "\n(Abu-abu)", weight: "regular", italic: false },
+  ];
+  const after = [
+    { text: "SENSITIVE\n", weight: "bold", italic: false },
+    { text: "(Abu-abu)", weight: "regular", italic: false },
+  ];
+  assert.deepEqual(
+    styleBoundaries(block(cell, [0, 0, 1, 1], "table-cell", before)),
+    styleBoundaries(block(cell, [0, 0, 1, 1], "table-cell", after)),
+  );
+  const score = scoreSlide(
+    [block(text, [0, 0, 100, 500], "body", truthRuns)],
+    [block(text, [0, 0, 100, 500], "body", detectedRuns)],
+  );
+  assert.deepEqual(score.runBoundaries, { expected: 1, found: 1, correct: 1 });
+});
+
+test("a missed watermark does not count against the content", () => {
+  const truth = [
+    block("Title", [0, 0, 100, 500], "title"),
+    block("Gemini Notebook", [970, 930, 990, 995], "watermark"),
+  ];
+  const score = scoreSlide(truth, [block("Title", [0, 0, 100, 500], "title")]);
+  assert.equal(score.cerReadingOrder, 0);
+  assert.equal(score.cerMatched, 0);
+  assert.equal(score.missed, 0);
+  assert.deepEqual(score.watermarks, { truth: 1, found: 0, roleKept: 0 });
+  // A watermark the model did find, with the right role, is not an extra block.
+  const found = scoreSlide(truth, truth);
+  assert.equal(found.extra, 0);
+  assert.deepEqual(found.watermarks, { truth: 1, found: 1, roleKept: 1 });
 });
 
 test("a perfect detection scores zero error", () => {

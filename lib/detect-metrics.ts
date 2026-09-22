@@ -88,70 +88,103 @@ export function matchBlocks(
 /**
  * Character offsets where weight or italic changes inside a block. Color-only
  * changes are left out on purpose: colors are estimates on both sides.
+ *
+ * Whitespace at a run edge is ignored (owner decision, 2026-09-22): a space
+ * has no visible style, so "Kondisi: " + "Kekurangan" and "Kondisi:" +
+ * " Kekurangan" are the same boundary. Each boundary is placed at the first
+ * visible character of the run that starts there.
  */
 export function styleBoundaries(block: EvalBlock): number[] {
   if (!block.runs || block.runs.length < 2) return [];
-  const boundaries: number[] = [];
+  const boundaries = new Set<number>();
   let offset = 0;
   for (let index = 0; index < block.runs.length; index += 1) {
     const run = block.runs[index];
+    const characters = Array.from(run.text);
     if (index > 0) {
       const previous = block.runs[index - 1];
-      if (previous.weight !== run.weight || previous.italic !== run.italic) boundaries.push(offset);
+      if (previous.weight !== run.weight || previous.italic !== run.italic) {
+        const leading = characters.findIndex((character) => !/\s/.test(character));
+        boundaries.add(offset + (leading === -1 ? characters.length : leading));
+      }
     }
-    offset += Array.from(run.text).length;
+    offset += characters.length;
   }
-  return boundaries;
+  return [...boundaries].sort((a, b) => a - b);
 }
 
 export type SlideScore = {
+  /** Counts and CER below are for the slide's content: watermarks are left out. */
   truthBlocks: number;
   detectedBlocks: number;
   matched: number;
   missed: number;
   extra: number;
-  /** CER of all text in reading order, independent of how blocks were split. */
+  /** CER of all content text in reading order, independent of how blocks were split. */
   cerReadingOrder: number;
-  /** CER over matched pairs, with missed and extra text counted in full. */
+  /** CER over matched content pairs, with missed and extra text counted in full. */
   cerMatched: number;
   meanIou: number | null;
   minIou: number | null;
   /** Style boundaries on matched blocks whose text is exactly right. */
   runBoundaries: { expected: number; found: number; correct: number };
-  /** Ground-truth table cells and watermarks whose match has the same role. */
-  roles: { tableCells: number; tableCellsKept: number; watermarks: number; watermarksKept: number };
+  /** Ground-truth table cells whose match has the same role. */
+  roles: { tableCells: number; tableCellsKept: number };
+  /**
+   * Watermarks, scored apart from the content: how many the ground truth has,
+   * how many were detected at all, and how many of those carry the role.
+   */
+  watermarks: { truth: number; found: number; roleKept: number };
 };
 
+/**
+ * Splits watermarks off before scoring. A ground-truth watermark and whatever
+ * it matched, plus any detected block with the watermark role, never count
+ * toward the content CER or the missed and extra blocks.
+ */
 export function scoreSlide(
   truth: readonly EvalBlock[],
   detected: readonly EvalBlock[],
 ): SlideScore {
-  const { matches, missed, extra } = matchBlocks(truth, detected);
-  const truthText = truth.map((block) => block.text).join("\n");
-  const detectedText = detected.map((block) => block.text).join("\n");
+  const all = matchBlocks(truth, detected);
+  const watermarkTruth = new Set(
+    truth.flatMap((block, index) => (block.role === "watermark" ? [index] : [])),
+  );
+  const watermarkDetected = new Set(
+    detected.flatMap((block, index) => (block.role === "watermark" ? [index] : [])),
+  );
+  const watermarks = { truth: watermarkTruth.size, found: 0, roleKept: 0 };
+  for (const match of all.matches) {
+    if (!watermarkTruth.has(match.truth)) continue;
+    watermarks.found += 1;
+    if (detected[match.detected].role === "watermark") watermarks.roleKept += 1;
+    watermarkDetected.add(match.detected);
+  }
+
+  const contentTruth = truth.filter((_, index) => !watermarkTruth.has(index));
+  const contentDetected = detected.filter((_, index) => !watermarkDetected.has(index));
+  const { matches, missed, extra } = matchBlocks(contentTruth, contentDetected);
+  const truthText = contentTruth.map((block) => block.text).join("\n");
+  const detectedText = contentDetected.map((block) => block.text).join("\n");
 
   let errors = 0;
   for (const match of matches) {
-    errors += levenshtein(truth[match.truth].text, detected[match.detected].text);
+    errors += levenshtein(contentTruth[match.truth].text, contentDetected[match.detected].text);
   }
-  for (const index of missed) errors += Array.from(truth[index].text).length;
-  for (const index of extra) errors += Array.from(detected[index].text).length;
-  const truthLength = truth.reduce((sum, block) => sum + Array.from(block.text).length, 0);
+  for (const index of missed) errors += Array.from(contentTruth[index].text).length;
+  for (const index of extra) errors += Array.from(contentDetected[index].text).length;
+  const truthLength = contentTruth.reduce((sum, block) => sum + Array.from(block.text).length, 0);
 
   const runBoundaries = { expected: 0, found: 0, correct: 0 };
-  const roles = { tableCells: 0, tableCellsKept: 0, watermarks: 0, watermarksKept: 0 };
+  const roles = { tableCells: 0, tableCellsKept: 0 };
   const matchedByTruth = new Map(matches.map((match) => [match.truth, match.detected]));
 
-  truth.forEach((block, index) => {
+  contentTruth.forEach((block, index) => {
     const detectedIndex = matchedByTruth.get(index);
-    const partner = detectedIndex === undefined ? undefined : detected[detectedIndex];
+    const partner = detectedIndex === undefined ? undefined : contentDetected[detectedIndex];
     if (block.role === "table-cell") {
       roles.tableCells += 1;
       if (partner?.role === "table-cell") roles.tableCellsKept += 1;
-    }
-    if (block.role === "watermark") {
-      roles.watermarks += 1;
-      if (partner?.role === "watermark") roles.watermarksKept += 1;
     }
     if (partner && partner.text === block.text) {
       const expected = styleBoundaries(block);
@@ -164,8 +197,8 @@ export function scoreSlide(
 
   const ious = matches.map((match) => match.iou);
   return {
-    truthBlocks: truth.length,
-    detectedBlocks: detected.length,
+    truthBlocks: contentTruth.length,
+    detectedBlocks: contentDetected.length,
     matched: matches.length,
     missed: missed.length,
     extra: extra.length,
@@ -175,5 +208,6 @@ export function scoreSlide(
     minIou: ious.length > 0 ? Math.min(...ious) : null,
     runBoundaries,
     roles,
+    watermarks,
   };
 }

@@ -4,7 +4,11 @@
  *
  *   npm run test:detect -- --model <id> [--model <id>] [--media-resolution default|low|medium|high]...
  *                          [--slides 1,4] [--no-cache] [--interval 4000]
- *                          [--max-attempts 3] [--budget-minutes 10]
+ *                          [--max-attempts 3] [--budget-minutes 10] [--cache-only]
+ *
+ * --cache-only scores only what is already cached and never creates a Gemini
+ * client, so it is guaranteed to make no request; anything not cached is
+ * reported as not-cached.
  *
  * Two guards keep a run from hanging on an overloaded model. --max-attempts
  * caps the real requests per item (a slide, or the injection slide); when they
@@ -29,7 +33,7 @@ import { fileURLToPath } from "node:url";
 import { createCanvas, loadImage } from "@napi-rs/canvas";
 import { matchBlocks, scoreSlide } from "../lib/detect-metrics.ts";
 import { addCodes, createBudget, measureItem } from "../lib/detect-run.ts";
-import { cacheDirectory, createFileCache } from "../lib/gemini/cache.ts";
+import { cacheDirectory, cacheKey, createFileCache } from "../lib/gemini/cache.ts";
 import { createGeminiCall, MEDIA_RESOLUTIONS } from "../lib/gemini/client.ts";
 import { modelChain } from "../lib/gemini/policy.ts";
 import { PROMPT_VERSION } from "../lib/prompts/detection.ts";
@@ -63,6 +67,7 @@ function parseArguments(argv) {
     interval: 4000,
     maxAttempts: 3,
     budgetMinutes: 10,
+    cacheOnly: false,
   };
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
@@ -84,6 +89,7 @@ function parseArguments(argv) {
         .split(",")
         .map((part) => Number(part.trim()));
     } else if (argument === "--no-cache") options.cache = false;
+    else if (argument === "--cache-only") options.cacheOnly = true;
     else if (argument === "--interval") options.interval = Number(value());
     else if (argument === "--max-attempts") options.maxAttempts = positive(argument, value());
     else if (argument === "--budget-minutes") options.budgetMinutes = positive(argument, value());
@@ -222,14 +228,24 @@ async function main() {
   const key = process.env.GEMINI_API_KEY ?? "";
   const directory = options.cache ? cacheDirectory(process.env, ROOT) : null;
   const cache = directory ? createFileCache(directory) : null;
-  const liveCall = key ? createGeminiCall(key) : null;
+  if (options.cacheOnly && !cache)
+    throw new Error("--cache-only needs the cache (drop --no-cache)");
+  // In cache-only mode no client exists at all, so no request can happen.
+  const liveCall = key && !options.cacheOnly ? createGeminiCall(key) : null;
   const budget = createBudget(options.budgetMinutes * 60_000);
 
   // Pace real requests so a comparison run does not trip per-minute limits.
   // The pause gives way as soon as the budget is spent.
   let lastCall = 0;
   const call = async (request) => {
-    if (!liveCall) throw Object.assign(new Error("GEMINI_API_KEY is not set"), { status: 401 });
+    if (!liveCall) {
+      throw Object.assign(
+        new Error(options.cacheOnly ? "cache-only run" : "GEMINI_API_KEY is not set"),
+        {
+          status: 401,
+        },
+      );
+    }
     const wait = lastCall + options.interval - Date.now();
     if (wait > 0) {
       await new Promise((resolve) => {
@@ -268,8 +284,18 @@ async function main() {
       `max ${options.maxAttempts} requests per item, budget ${options.budgetMinutes} min\n`,
   );
 
-  const measure = (png, chain, resolution) =>
-    measureItem({
+  const cached = async (png, chain, resolution) => {
+    for (const model of chain) {
+      if (await cache.get(cacheKey(png, model, resolution))) return true;
+    }
+    return false;
+  };
+
+  const measure = async (png, chain, resolution) => {
+    if (options.cacheOnly && !(await cached(png, chain, resolution))) {
+      return { ok: false, status: "not-cached", requests: 0, codes: {} };
+    }
+    return measureItem({
       png,
       chain,
       mediaResolution: resolution,
@@ -278,6 +304,7 @@ async function main() {
       maxAttempts: options.maxAttempts,
       budget,
     });
+  };
 
   for (const chain of models.map((entry) => (Array.isArray(entry) ? entry : [entry]))) {
     for (const resolution of options.resolutions) {
@@ -419,8 +446,11 @@ async function main() {
         roles: {
           tableCells: sum((entry) => entry.score.roles.tableCells),
           tableCellsKept: sum((entry) => entry.score.roles.tableCellsKept),
-          watermarks: sum((entry) => entry.score.roles.watermarks),
-          watermarksKept: sum((entry) => entry.score.roles.watermarksKept),
+        },
+        watermarks: {
+          truth: sum((entry) => entry.score.watermarks.truth),
+          found: sum((entry) => entry.score.watermarks.found),
+          roleKept: sum((entry) => entry.score.watermarks.roleKept),
         },
         tokens: sum((entry) => entry.usage?.totalTokens ?? 0),
         meanMs: live.length
@@ -434,7 +464,7 @@ async function main() {
         `  TOTAL  CER ${percent(t.cerReadingOrder)}  matched-CER ${percent(t.cerMatched)}  missed ${t.missed}/${t.truthBlocks}  extra ${t.extra}  ` +
           `IoU ${fixed(t.meanIou)} (min ${fixed(t.minIou)})  runs dropped ${t.runsDropped}  ` +
           `run boundaries ${t.runBoundaries.correct}/${t.runBoundaries.expected} (found ${t.runBoundaries.found})  ` +
-          `table cells ${t.roles.tableCellsKept}/${t.roles.tableCells}  watermarks ${t.roles.watermarksKept}/${t.roles.watermarks}  ` +
+          `table cells ${t.roles.tableCellsKept}/${t.roles.tableCells}  watermarks found ${t.watermarks.found}/${t.watermarks.truth} (role kept ${t.watermarks.roleKept})  ` +
           `tokens ${t.tokens}  mean latency ${t.meanMs ?? "-"} ms\n  requests: ${codeText || "none (all cached)"}\n`,
       );
     }
