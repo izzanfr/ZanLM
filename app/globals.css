@@ -1168,7 +1168,12 @@ h3 {
     animation-iteration-count: 1 !important;
     transition-duration: 1ms !important;
   }
-  .site-header.nav-hidden {
+  /* Reduced motion keeps the navbar in place instead of hiding it on scroll.
+     This has to repeat the `:not(:focus-within)` of the base hide rule: with a
+     plain `.site-header.nav-hidden` the base rule is more specific and wins,
+     and the navbar still jumps out of view. Guarded by
+     tests/navbar-reduced-motion.test.ts. */
+  .site-header.nav-hidden:not(:focus-within) {
     transform: translateX(-50%);
   }
   .logo-link:hover .brand svg {

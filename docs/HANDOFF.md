@@ -66,7 +66,7 @@ Must stop or be absent:
 - Demo pinning and scroll scrubbing; manual "Separate layers" jumps instead of animating.
 - Magnet pull on the hero CTA.
 - Page transition fade/slide; active marker slide and mobile menu stagger become instant (CSS reduces durations to 1 ms).
-- Navbar hide/show no longer slides: it still hides on downward scroll and returns on upward scroll, but instantly (measured transition 1 ms).
+- Navbar hide/show: the navbar stays visible at all times, it no longer leaves the viewport on downward scroll.
 - Sign-in error shake.
 
 Must still be visible and usable:
@@ -100,7 +100,6 @@ Must still be visible and usable:
 - Hidden-tab pausing of Threads relies on its own `document.hidden` check plus the browser pausing `requestAnimationFrame`; only the offscreen pause was measured.
 - Threads keeps a `requestAnimationFrame` loop alive while offscreen (it skips the draw); the cost is a no-op callback per frame.
 - On desktop the four in-slide labels are briefly visible between server render and hydration before the pinned timeline hides them. No layout shift; opacity only.
-- `app/globals.css` has a reduced-motion rule `.site-header.nav-hidden { transform: translateX(-50%) }` that looks intended to keep the navbar visible, but the base rule `.site-header.nav-hidden:not(:focus-within)` is more specific, so it never applies; the navbar hides instantly instead. Decide whether reduced motion should keep the navbar always visible.
 - Legacy components still use class-based CSS in `app/globals.css` (see AGENTS.md, Styling).
 - `node_modules` contains three extraneous packages (`@img/sharp-wasm32`, `@napi-rs/wasm-runtime`, `@tybys/wasm-util`); harmless, removable with `npm prune`.
 - `scripts/setup.mjs` writes the access code in plain text to `.env.local` (needed because the server hashes both sides at compare time). The `0o600` file mode has no effect on Windows; the file is protected only by the user profile ACL and `.gitignore`.
