@@ -3,6 +3,8 @@ import { ArrowUpRight, ArrowDown, FileUp, ScanLine, MousePointer2 } from "lucide
 import { HeroTitle } from "@/components/hero-title";
 import { SlideDemo } from "@/components/slide-demo";
 import { Limitations } from "@/components/limitations";
+import { AnimatedBackground } from "@/components/animated-background";
+import { LineMotif } from "@/components/line-motif";
 import { en } from "@/lib/i18n/en";
 export default function Home() {
   const icons = [FileUp, ScanLine, MousePointer2];
@@ -26,11 +28,10 @@ export default function Home() {
           </a>
         </div>
         <p className="hero-note">{en.hero.note}</p>
-        <div className="hero-ornament" aria-hidden="true">
-          <span />
-          <span />
-          <span />
-        </div>
+        <AnimatedBackground
+          variant="hero"
+          fallback={<LineMotif className="right-5 bottom-[51px] max-[1000px]:hidden" />}
+        />
       </section>
       <SlideDemo />
       <section id="how-it-works" className="how-section">

@@ -51,6 +51,11 @@
   --sample-ink: #142b4a;
   --sample-muted: #58677b;
   --selection: #426a9b;
+  /* Animated background lines. Opacities are capped so muted text keeps WCAG AA
+     where lines are densest; tests/contrast.test.ts enforces this. */
+  --background-motion: #b2c5dd;
+  --background-motion-opacity: 0.4;
+  --background-motion-opacity-surface: 0.3;
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -82,6 +87,9 @@
   --warning: #eac18e;
   --glass: rgb(16 28 46 / 0.94);
   --nav-active: #253b58;
+  --background-motion: #7696bd;
+  --background-motion-opacity: 0.36;
+  --background-motion-opacity-surface: 0.3;
   --shadow-nav: 0 8px 28px rgb(0 0 0 / 0.12);
   color-scheme: dark;
 }

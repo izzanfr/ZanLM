@@ -2,13 +2,19 @@ import { redirect } from "next/navigation";
 import { authConfig, hasSession } from "@/lib/auth/server";
 import { Logo } from "@/components/logo";
 import { SignInForm } from "@/components/sign-in-form";
+import { AnimatedBackground } from "@/components/animated-background";
+import { LineMotif } from "@/components/line-motif";
 import { en } from "@/lib/i18n/en";
 export default async function SignIn() {
   if (await hasSession()) redirect("/workspace");
   const configured = !!authConfig();
   return (
     <main id="main" className="shell sign-in-page">
-      <section className="sign-in-art" aria-label={en.login.artwork}>
+      <section
+        className="sign-in-art relative isolate overflow-hidden"
+        aria-label={en.login.artwork}
+      >
+        <AnimatedBackground variant="panel" fallback={<LineMotif className="top-12 right-10" />} />
         <Logo markOnly />
         <h2>{en.login.artwork}</h2>
         <p>{en.footer.credit}</p>

@@ -364,28 +364,6 @@ h3 {
   color: var(--muted);
   margin-top: 20px;
 }
-.hero-ornament {
-  position: absolute;
-  width: 126px;
-  height: 134px;
-  right: 20px;
-  bottom: 51px;
-  z-index: -1;
-  opacity: 0.36;
-  transform: rotate(-13deg);
-}
-.hero-ornament span {
-  position: absolute;
-  inset: 0;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-}
-.hero-ornament span:nth-child(2) {
-  transform: translate(-10px, -10px);
-}
-.hero-ornament span:nth-child(3) {
-  transform: translate(-20px, -20px);
-}
 .demo-section {
   scroll-margin-top: 130px;
   padding-top: 25px;
@@ -956,9 +934,6 @@ h3 {
   .nav-actions {
     gap: 2px;
   }
-  .hero-ornament {
-    display: none;
-  }
   .demo-controls {
     align-items: flex-start;
   }
@@ -1189,9 +1164,6 @@ h3 {
     animation-duration: 1ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 1ms !important;
-  }
-  .hero-ornament {
-    transform: none;
   }
   .site-header.nav-hidden {
     transform: translateX(-50%);
