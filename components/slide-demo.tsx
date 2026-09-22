@@ -15,10 +15,30 @@ import {
 } from "lucide-react";
 import { en } from "@/lib/i18n/en";
 import { motionSeconds } from "@/lib/motion";
+import {
+  DEMO_CONDITIONS,
+  demoMotionMode,
+  SEPARATED_OFFSETS,
+  SEPARATED_SCALE,
+} from "@/lib/demo-motion";
 gsap.registerPlugin(useGSAP, ScrollTrigger);
 const layerKeys = ["background", "panels", "objects", "text"] as const;
 type Layer = (typeof layerKeys)[number];
 const icons = { background: Wallpaper, panels: Square, objects: ImageIcon, text: Type };
+const layerLabels: Record<Layer, string> = {
+  background: en.demo.backgroundLabel,
+  panels: en.demo.panelLabel,
+  objects: en.demo.imageLabel,
+  text: en.demo.textLabel,
+};
+// Label anchors in slide percentages, next to the element each layer contains.
+const labelPositions: Record<Layer, string> = {
+  background: "right-[3%] bottom-[3%]",
+  panels: "left-[51%] top-[66%]",
+  objects: "right-[4%] top-[23%]",
+  text: "left-[50%] top-[23%]",
+};
+
 export function SlideDemo() {
   const ref = useRef<HTMLElement>(null);
   const [exploded, setExploded] = useState(false);
@@ -28,23 +48,77 @@ export function SlideDemo() {
     objects: true,
     text: true,
   });
+  // Scroll storyboard. Outer .slide-layer elements move with scroll; the manual
+  // controls below move the inner .layer-inner elements, so they never compete.
   useGSAP(
     () => {
       const mm = gsap.matchMedia();
-      mm.add("(prefers-reduced-motion: no-preference)", () => {
+      mm.add(DEMO_CONDITIONS, (context) => {
+        const conditions = context.conditions as Record<keyof typeof DEMO_CONDITIONS, boolean>;
+        const mode = demoMotionMode(conditions);
+        const layer = (key: Layer) => `.reconstructed .layer-${key}`;
+        const moving = (["panels", "objects", "text"] as const).map(layer);
+        const labels = ".reconstructed .layer-label";
+        const frame = ".reconstructed";
+        const art = ".reconstructed .slide-art";
+
+        if (mode === "static") {
+          // Reduced motion: a still, separated diagram with every label visible.
+          gsap.set(art, { scale: SEPARATED_SCALE });
+          for (const key of ["panels", "objects", "text"] as const) {
+            gsap.set(layer(key), SEPARATED_OFFSETS[key]);
+          }
+          return;
+        }
+
+        if (mode === "enter") {
+          // Small screens: no pinning, layers settle as the demo scrolls in.
+          gsap
+            .timeline({
+              scrollTrigger: { trigger: ref.current, start: "top 85%", end: "top 30%", scrub: 1 },
+            })
+            .fromTo(layer("panels"), { y: 12 }, { y: 0 }, 0)
+            .fromTo(layer("objects"), { y: 24 }, { y: 0 }, 0)
+            .fromTo(layer("text"), { y: 36 }, { y: 0 }, 0);
+          return;
+        }
+
+        // Desktop: pinned three-phase storyboard.
+        gsap.set(labels, { autoAlpha: 0, y: 8 });
+        gsap.set(frame, { "--selection-opacity": 0 });
         const timeline = gsap.timeline({
-          scrollTrigger: { trigger: ref.current, start: "top 85%", end: "top 30%", scrub: 1 },
+          defaults: { ease: "power1.inOut" },
+          scrollTrigger: {
+            trigger: ref.current,
+            start: "center center",
+            end: "+=150%",
+            pin: true,
+            scrub: 0.6,
+            anticipatePin: 1,
+            invalidateOnRefresh: true,
+          },
         });
-        timeline
-          .fromTo(".reconstructed .layer-panels", { y: 12 }, { y: 0 }, 0)
-          .fromTo(".reconstructed .layer-objects", { y: 24 }, { y: 0 }, 0)
-          .fromTo(".reconstructed .layer-text", { y: 36 }, { y: 0 }, 0);
+        // Separate, 0–35%. The slide shrinks slightly so lifted layers stay in the frame.
+        timeline.to(art, { scale: SEPARATED_SCALE, duration: 0.35 }, 0);
+        for (const key of ["panels", "objects", "text"] as const) {
+          timeline.to(layer(key), { ...SEPARATED_OFFSETS[key], duration: 0.35 }, 0);
+        }
+        // Explain, 35–70%: labels appear next to their layers and hold.
+        timeline.to(labels, { autoAlpha: 1, y: 0, duration: 0.15, stagger: 0.04 }, 0.35);
+        // Reassemble, 70–100%: layers settle, labels give way to selection boxes.
+        timeline.to(moving, { x: 0, y: 0, duration: 0.25 }, 0.7);
+        timeline.to(art, { scale: 1, duration: 0.25 }, 0.7);
+        timeline.to(labels, { autoAlpha: 0, y: -4, duration: 0.1 }, 0.7);
+        timeline.to(frame, { "--selection-opacity": 1, duration: 0.15 }, 0.85);
+
+        // System fonts rarely shift layout, but refresh once they settle so the
+        // pin starts exactly where the section is.
+        void document.fonts?.ready.then(() => ScrollTrigger.refresh());
       });
       return () => mm.revert();
     },
     { scope: ref },
   );
-  // Manual demo uses a separate inner transform, so scroll and user controls never compete.
   useGSAP(
     () => {
       const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -89,6 +163,21 @@ export function SlideDemo() {
           </div>
         </div>
       </div>
+      {/* Visible legend on small screens; kept for screen readers on desktop, where
+          the same labels appear inside the slide (the slide itself is role="img"). */}
+      <ul className="mt-4 grid grid-cols-2 gap-2 lg:sr-only">
+        {layerKeys.map((key) => {
+          const Icon = icons[key];
+          return (
+            <li key={key} className="flex items-center gap-2 text-caption text-muted">
+              <Icon size={14} aria-hidden="true" className="shrink-0 text-ink" />
+              <span>
+                <span className="text-ink">{en.demo[key]}</span> · {layerLabels[key]}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
       <div className="demo-controls">
         <div className="layer-switches" role="group" aria-label={en.demo.separate}>
           {layerKeys.map((key) => {
@@ -127,15 +216,26 @@ function SlideArt({
   visible?: Record<Layer, boolean>;
   editable?: boolean;
 }) {
+  const label = (key: Layer) =>
+    editable && (
+      <span
+        aria-hidden="true"
+        className={`layer-label absolute z-10 rounded-pill border border-border bg-canvas px-2 py-0.5 text-caption whitespace-nowrap text-ink shadow-floating max-lg:hidden ${labelPositions[key]}`}
+      >
+        {layerLabels[key]}
+      </span>
+    );
   return (
     <div className="slide-art" role="img" aria-label={en.demo.canvas}>
       <div className="slide-layer layer-background" style={{ opacity: visible.background ? 1 : 0 }}>
         <div className="layer-inner source-background" />
+        {label("background")}
       </div>
       <div className="slide-layer layer-panels" style={{ opacity: visible.panels ? 1 : 0 }}>
         <div className="layer-inner">
           <div className="source-panel" />
         </div>
+        {label("panels")}
       </div>
       <div className="slide-layer layer-objects" style={{ opacity: visible.objects ? 1 : 0 }}>
         <div className="layer-inner">
@@ -146,6 +246,7 @@ function SlideArt({
             {editable && <SelectionCorners />}
           </div>
         </div>
+        {label("objects")}
       </div>
       <div className="slide-layer layer-text" style={{ opacity: visible.text ? 1 : 0 }}>
         <div className="layer-inner">
@@ -158,6 +259,7 @@ function SlideArt({
           <span className="source-panel-title">{en.demo.panel}</span>
           <span className="source-panel-detail">{en.demo.detail}</span>
         </div>
+        {label("text")}
       </div>
     </div>
   );
