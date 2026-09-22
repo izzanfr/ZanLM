@@ -1,7 +1,7 @@
 import "server-only";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { jobPathSegments, jobSchema, newJob, type Job, type JobFolder } from "./core";
+import { jobPathSegments, jobSchema, newJob, type Job, type JobFolder } from "./core.ts";
 
 export function jobsRoot(): string {
   return join(process.cwd(), "data", "jobs");
