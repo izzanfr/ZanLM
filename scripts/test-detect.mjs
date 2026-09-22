@@ -31,7 +31,9 @@ import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createCanvas, loadImage } from "@napi-rs/canvas";
-import { matchBlocks, scoreSlide } from "../lib/detect-metrics.ts";
+import sharp from "sharp";
+import { refineBox } from "../lib/box-refine.ts";
+import { intersectionOverUnion, matchBlocks, scoreSlide } from "../lib/detect-metrics.ts";
 import { addCodes, createBudget, measureItem } from "../lib/detect-run.ts";
 import { cacheDirectory, cacheKey, createFileCache } from "../lib/gemini/cache.ts";
 import { createGeminiCall, MEDIA_RESOLUTIONS } from "../lib/gemini/client.ts";
@@ -183,6 +185,84 @@ async function drawOverlay(png, truth, detected, score, file) {
     label(`D${index + 1}${block.runs ? " r" : ""}`, x + width - 40, y + height + 16, "#FF3B30");
   });
   await writeFile(file, canvas.toBuffer("image/png"));
+}
+
+async function drawRefinedOverlay(png, truth, detected, refined, file) {
+  const image = await loadImage(png);
+  const canvas = createCanvas(image.width, image.height);
+  const context = canvas.getContext("2d");
+  context.drawImage(image, 0, 0);
+  const rect = (box) => [
+    (box[1] / 1000) * image.width,
+    (box[0] / 1000) * image.height,
+    ((box[3] - box[1]) / 1000) * image.width,
+    ((box[2] - box[0]) / 1000) * image.height,
+  ];
+  context.lineWidth = 2;
+  context.setLineDash([6, 4]);
+  context.strokeStyle = "#2F80FF";
+  for (const block of truth) context.strokeRect(...rect(block.box_2d));
+  context.setLineDash([]);
+  context.strokeStyle = "#FF3B30";
+  for (const block of detected) context.strokeRect(...rect(block.box_2d));
+  context.strokeStyle = "#FFC400";
+  context.lineWidth = 3;
+  refined.forEach((result) => {
+    if (result.refined) context.strokeRect(...rect(result.box));
+  });
+  // Legend, so the image explains itself.
+  context.font = "bold 14px Arial";
+  const legend = [
+    ["#2F80FF", "ground truth (dashed)"],
+    ["#FF3B30", "Gemini"],
+    ["#FFC400", "refined"],
+  ];
+  legend.forEach(([color, label], index) => {
+    context.fillStyle = "rgba(0,0,0,0.7)";
+    context.fillRect(8, 8 + index * 20, 190, 20);
+    context.fillStyle = color;
+    context.fillRect(14, 13 + index * 20, 12, 10);
+    context.fillStyle = "#FFFFFF";
+    context.fillText(label, 32, 23 + index * 20);
+  });
+  await writeFile(file, canvas.toBuffer("image/png"));
+}
+
+async function rawPixels(png) {
+  const { data, info } = await sharp(png).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+  return { data, width: info.width, height: info.height, channels: info.channels };
+}
+
+/**
+ * IoU of Gemini's boxes and of the refined boxes on the same content pairs,
+ * so the two numbers compare like for like. Watermarks are left out.
+ */
+function refinementScore(truth, detected, refined) {
+  const { matches } = matchBlocks(truth, detected);
+  const content = matches.filter((match) => truth[match.truth].role !== "watermark");
+  const before = content.map((match) => match.iou);
+  const after = content.map((match) =>
+    intersectionOverUnion(truth[match.truth].box_2d, refined[match.detected].box),
+  );
+  const reasons = {};
+  for (const result of refined) {
+    if (!result.refined) reasons[result.reason] = (reasons[result.reason] ?? 0) + 1;
+  }
+  const average = (values) =>
+    values.length ? values.reduce((a, b) => a + b, 0) / values.length : null;
+  return {
+    pairs: content.length,
+    iouGemini: average(before),
+    iouRefined: average(after),
+    improved: after.filter((value, index) => value > before[index] + 0.01).length,
+    worse: after.filter((value, index) => value < before[index] - 0.01).length,
+    refinedBlocks: refined.filter((result) => result.refined).length,
+    keptBlocks: refined.filter((result) => !result.refined).length,
+    reasons,
+    // Kept for totals: per-pair values.
+    before,
+    after,
+  };
 }
 
 const percent = (value) => (value === null ? "  -  " : `${(value * 100).toFixed(1)}%`);
@@ -355,6 +435,17 @@ async function main() {
           0,
         );
         const pairing = matchBlocks(slide.blocks, detected);
+        // Box refinement from the slide's own pixels; the text is never touched.
+        const raw = await rawPixels(slide.png);
+        const refined = detected.map((block) => refineBox(raw, block.box_2d, block.color));
+        const refinement = refinementScore(slide.blocks, detected, refined);
+        await drawRefinedOverlay(
+          slide.png,
+          slide.blocks,
+          detected,
+          refined,
+          join(folder, `slide-${String(slide.index).padStart(2, "0")}-refined.png`),
+        );
         await drawOverlay(
           slide.png,
           slide.blocks,
@@ -368,6 +459,7 @@ async function main() {
           truthChars,
           score,
           runsDropped: result.detection.runsDropped,
+          refinement,
           fromCache: result.fromCache,
           requests: outcome.requests,
           model: result.model,
@@ -380,6 +472,7 @@ async function main() {
         console.log(
           `  slide ${String(slide.index).padStart(2)}  CER ${percent(score.cerReadingOrder).padStart(6)}  matched-CER ${percent(score.cerMatched).padStart(6)}  ` +
             `missed ${score.missed}/${score.truthBlocks}  extra ${score.extra}  IoU ${fixed(score.meanIou)}  ` +
+            `refined IoU ${fixed(refinement.iouGemini)} -> ${fixed(refinement.iouRefined)} (${refinement.refinedBlocks} refined, ${refinement.keptBlocks} kept)  ` +
             `runs dropped ${result.detection.runsDropped}  tokens ${result.usage?.totalTokens ?? "-"}  ` +
             `${result.fromCache ? "cache" : `${combo.slides.at(-1).ms} ms, ${outcome.requests} request(s)`}`,
         );
@@ -452,6 +545,18 @@ async function main() {
           found: sum((entry) => entry.score.watermarks.found),
           roleKept: sum((entry) => entry.score.watermarks.roleKept),
         },
+        refinement: (() => {
+          const before = scored.flatMap((entry) => entry.refinement.before);
+          const after = scored.flatMap((entry) => entry.refinement.after);
+          const average = (values) => values.reduce((a, b) => a + b, 0) / values.length;
+          return {
+            pairs: before.length,
+            iouGemini: before.length ? average(before) : null,
+            iouRefined: after.length ? average(after) : null,
+            refinedBlocks: sum((entry) => entry.refinement.refinedBlocks),
+            keptBlocks: sum((entry) => entry.refinement.keptBlocks),
+          };
+        })(),
         tokens: sum((entry) => entry.usage?.totalTokens ?? 0),
         meanMs: live.length
           ? Math.round(live.reduce((total, entry) => total + entry.ms, 0) / live.length)
@@ -462,7 +567,7 @@ async function main() {
       const t = combo.totals;
       console.log(
         `  TOTAL  CER ${percent(t.cerReadingOrder)}  matched-CER ${percent(t.cerMatched)}  missed ${t.missed}/${t.truthBlocks}  extra ${t.extra}  ` +
-          `IoU ${fixed(t.meanIou)} (min ${fixed(t.minIou)})  runs dropped ${t.runsDropped}  ` +
+          `IoU ${fixed(t.meanIou)} (min ${fixed(t.minIou)})  refined IoU ${fixed(t.refinement.iouGemini)} -> ${fixed(t.refinement.iouRefined)}  runs dropped ${t.runsDropped}  ` +
           `run boundaries ${t.runBoundaries.correct}/${t.runBoundaries.expected} (found ${t.runBoundaries.found})  ` +
           `table cells ${t.roles.tableCellsKept}/${t.roles.tableCells}  watermarks found ${t.watermarks.found}/${t.watermarks.truth} (role kept ${t.watermarks.roleKept})  ` +
           `tokens ${t.tokens}  mean latency ${t.meanMs ?? "-"} ms\n  requests: ${codeText || "none (all cached)"}\n`,
