@@ -12,10 +12,10 @@ Owner decisions confirmed on 2026-09-22 (details and rejected alternatives in `d
 - Navbar option A, Floating studio pill.
 - Landing motion option (c): the storyboard demo is pinned on spacious desktop layouts with separate, label and reassembly phases; one subtle animated React Bits background in the hero (optionally Sign in) that pauses offscreen or in a hidden tab and is off under reduced motion; magnet or spotlight effect on the main CTA. React Bits components are installed via the official CLI.
 - Prettier formatting is mandatory; minified source is not allowed.
-- Tailwind v4: design tokens are mapped to `@theme`; new components use Tailwind utilities; existing CSS in `app/globals.css` migrates only when its file is touched.
+- Tailwind v4: design tokens are mapped to `@theme`; new components use Tailwind utilities; existing CSS in `app/globals.css` may migrate only when its component is touched (optional).
 - The global login rate limit must become per-IP before any deploy.
 
-Current status: T0 done, T1 in progress (see `docs/HANDOFF.md`).
+Current status: T0 and T1 done; T2 not started (see `docs/HANDOFF.md`).
 
 ## Phase gates
 
@@ -49,4 +49,4 @@ The supplied brief asks for a plan, implementation, verification, small commits,
 
 ## Motion and interaction
 
-Marketing may be expressive, working pages stay quiet. Respect reduced motion and clean up animations. Use dynamic import for animation-heavy/vendor components. Avoid WebGL in Review; currently no WebGL anywhere. Navigation hides downward and returns upward, remains visible on keyboard focus, and uses a native modal mobile menu with focus restoration. Keep meaningful limitations available in an expandable disclosure.
+Marketing may be expressive, working pages stay quiet. Respect reduced motion and clean up animations. Use dynamic import for animation-heavy/vendor components. Avoid WebGL in Review; the only WebGL is the Threads background on Home and Sign in. Navigation hides downward and returns upward, remains visible on keyboard focus, and uses a native modal mobile menu with focus restoration. Keep meaningful limitations available in an expandable disclosure.

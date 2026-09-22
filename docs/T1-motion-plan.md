@@ -1,4 +1,6 @@
-# T1 motion plan (awaiting owner approval)
+# T1 motion plan
+
+Status: **implemented** (commits `0fe4c01`, `48ce461`, `9362398`, `6ea7dbd`). Approved on 2026-09-22 with Threads. Deviations from the text below, recorded in `docs/HANDOFF.md`: `ogl` is Unlicense (not MIT); the separated slide scales to 0.9; the magnet is on the hero CTA only; the static fallback is also used when WebGL is missing or fails; the CLI dry-run preview shows the wrong target folder but installs to `components/reactbits/`.
 
 Scope: landing option (c) approved on 2026-09-22. This plan covers the animated background, the pinned layer demo and the magnetic CTA. Nothing here is implemented until the owner approves it and picks a background.
 

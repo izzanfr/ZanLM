@@ -88,9 +88,11 @@ Source: `design/tokens.json` (design reference) and `app/tokens.css` (runtime CS
 - Motion durations: `duration-(--motion-feedback)`, `duration-(--motion-panel)`, `duration-(--motion-page)`.
 - `dark:` targets `[data-theme="dark"]`, not the OS setting. Prefer theme-aware color utilities over `dark:` overrides. Use `motion-reduce:` for reduced motion.
 - **New components use Tailwind utilities with these tokens.** Never hardcode colors, sizes or durations.
-- **Do not rewrite existing CSS in bulk.** Legacy class-based CSS in `app/globals.css` migrates to Tailwind only when the component that uses it is touched for another reason; delete the old rules in the same commit.
+- **Do not rewrite existing CSS in bulk.** Legacy class-based CSS in `app/globals.css` may migrate to Tailwind when the component that uses it is touched for another reason (optional, not required); if you migrate a rule, delete the old rule in the same commit. Markup you add is always Tailwind.
 
 ## Motion rules
+
+The reduced-motion behaviour of every landing effect is listed in `docs/HANDOFF.md` ("Reduced motion checklist"). Keep it current when adding motion.
 
 - Marketing pages (Home, Sign in) may be expressive. Working pages (Upload, Processing, Review, Download) stay calm and functional. No WebGL in Review.
 - At most one animated/WebGL background per page. Pause it when it leaves the viewport or the tab is hidden.
@@ -114,8 +116,8 @@ After installing, compare the file byte-for-byte with the registry `files[0].con
 | Component | File                                | Used by                                                     | Notes                                                                                 |
 | --------- | ----------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------- |
 | BlurText  | `components/reactbits/BlurText.tsx` | `components/hero-title.tsx` (dynamic, reduced-motion aware) | Verified identical to official `BlurText-TS-TW` on 2026-09-22; needs `motion`         |
-| Threads   | `components/reactbits/Threads.tsx`  | Planned: `components/animated-background.tsx`               | Installed via CLI 2026-09-22, verified identical; WebGL through `ogl`                 |
-| Magnet    | `components/reactbits/Magnet.tsx`   | Planned: `components/magnetic.tsx`                          | Installed via CLI 2026-09-22, verified identical; no dependencies; global `mousemove` |
+| Threads   | `components/reactbits/Threads.tsx`  | `components/animated-background.tsx` (hero, sign-in panel)  | Installed via CLI 2026-09-22, verified identical; WebGL through `ogl`                 |
+| Magnet    | `components/reactbits/Magnet.tsx`   | `components/magnetic.tsx` (hero CTA only, not the navbar)   | Installed via CLI 2026-09-22, verified identical; no dependencies; global `mousemove` |
 
 Approved third-party runtime dependencies beyond the Next/React stack: `gsap` + `@gsap/react` (GSAP Standard "no charge" license), `motion` (MIT), `ogl` (Unlicense, public domain; required by Threads), `lucide-react` (ISC), `zod`, `clsx`, `tailwind-merge`, `server-only` (MIT). Adding any other dependency needs the owner's approval.
 
@@ -129,6 +131,10 @@ components/reactbits/ unmodified React Bits vendor components
 lib/auth/            core.ts (pure, tested), server.ts (server-only helpers)
 lib/i18n/en.ts       all UI copy
 lib/motion.ts        motion token reader
+lib/color.ts         pure color and WCAG contrast helpers
+lib/background-motion.ts, lib/demo-motion.ts, lib/magnet.ts
+                     pure decision logic for the landing motion (unit tested)
+lib/use-media-query.ts live media query hook (reduced motion, pointer)
 design/              T0 tokens, mockups, logos, build_mockups.py
 docs/                HANDOFF.md, plan.md, T0-design.md
 scripts/             setup.mjs, smoke.mjs
