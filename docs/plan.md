@@ -15,7 +15,7 @@ Owner decisions confirmed on 2026-09-22 (details and rejected alternatives in `d
 - Tailwind v4: design tokens are mapped to `@theme`; new components use Tailwind utilities; existing CSS in `app/globals.css` may migrate only when its component is touched (optional).
 - The global login rate limit must become per-IP before any deploy.
 
-Current status: T0 and T1 done; T2 not started (see `docs/HANDOFF.md`).
+Current status: T0 and T1 done; T2 plan in `docs/T2-plan.md` awaiting approval (see `docs/HANDOFF.md`).
 
 ## Phase gates
 

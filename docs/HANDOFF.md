@@ -4,17 +4,17 @@ Last updated: 2026-09-22. Read `AGENTS.md` first; the full plan is in `docs/plan
 
 ## Phase status
 
-| Phase                               | Status      | Last commit          | Notes                                                                                                                                  |
-| ----------------------------------- | ----------- | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| T0 Design                           | Done        | `84e844f`            | Tokens, six mockups, three navbar options, storyboard and logo in `design/` and `docs/T0-design.md`. Navbar A chosen by the owner.     |
-| T1 Foundation                       | Done        | see T1 commits below | Auth, sessions, proxy, API guards, i18n, navbar, page transition, landing with Threads background, pinned layer demo and magnetic CTA. |
-| T2 Upload and extraction            | Not started | —                    | Plan is the next step                                                                                                                  |
-| T3 Gemini detection and text export | Not started | —                    |                                                                                                                                        |
-| T4 Worker and text inpainting       | Not started | —                    |                                                                                                                                        |
-| T5 Object segmentation              | Not started | —                    |                                                                                                                                        |
-| T6 Native panel shapes              | Not started | —                    |                                                                                                                                        |
-| T7 Review and fix, QA               | Not started | —                    |                                                                                                                                        |
-| T8 Tables and SVG icons (optional)  | Not started | —                    |                                                                                                                                        |
+| Phase                               | Status                 | Last commit          | Notes                                                                                                                                  |
+| ----------------------------------- | ---------------------- | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| T0 Design                           | Done                   | `84e844f`            | Tokens, six mockups, three navbar options, storyboard and logo in `design/` and `docs/T0-design.md`. Navbar A chosen by the owner.     |
+| T1 Foundation                       | Done                   | see T1 commits below | Auth, sessions, proxy, API guards, i18n, navbar, page transition, landing with Threads background, pinned layer demo and magnetic CTA. |
+| T2 Upload and extraction            | Plan awaiting approval | —                    | `docs/T2-plan.md`                                                                                                                      |
+| T3 Gemini detection and text export | Not started            | —                    |                                                                                                                                        |
+| T4 Worker and text inpainting       | Not started            | —                    |                                                                                                                                        |
+| T5 Object segmentation              | Not started            | —                    |                                                                                                                                        |
+| T6 Native panel shapes              | Not started            | —                    |                                                                                                                                        |
+| T7 Review and fix, QA               | Not started            | —                    |                                                                                                                                        |
+| T8 Tables and SVG icons (optional)  | Not started            | —                    |                                                                                                                                        |
 
 History note: the previous agent (ChatGPT) built T0 and most of T1 without git and stopped without a handoff. Commit `84e844f` is that work imported as-is.
 
@@ -108,5 +108,6 @@ Must still be visible and usable:
 
 ## Next steps
 
-1. Write the T2 plan in `docs/T2-plan.md` and stop for owner approval.
+1. Owner answers the five decisions in `docs/T2-plan.md` section 9 and puts a NotebookLM sample into `samples/`. Do not start T2 code before approval.
 2. Owner runs `npm run setup` and checks reduced motion with the checklist above.
+3. Implement T2 in the commits listed in the plan.
