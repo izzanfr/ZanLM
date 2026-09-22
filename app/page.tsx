@@ -5,6 +5,7 @@ import { SlideDemo } from "@/components/slide-demo";
 import { Limitations } from "@/components/limitations";
 import { AnimatedBackground } from "@/components/animated-background";
 import { LineMotif } from "@/components/line-motif";
+import { Magnetic } from "@/components/magnetic";
 import { en } from "@/lib/i18n/en";
 export default function Home() {
   const icons = [FileUp, ScanLine, MousePointer2];
@@ -18,10 +19,12 @@ export default function Home() {
         <HeroTitle />
         <p className="hero-description">{en.hero.description}</p>
         <div className="hero-actions">
-          <Link href="/workspace" className="button button-large">
-            {en.nav.convert}
-            <ArrowUpRight size={19} aria-hidden="true" />
-          </Link>
+          <Magnetic>
+            <Link href="/workspace" className="button button-large">
+              {en.nav.convert}
+              <ArrowUpRight size={19} aria-hidden="true" />
+            </Link>
+          </Magnetic>
           <a href="#demo" className="text-button">
             {en.hero.demo}
             <ArrowDown size={16} aria-hidden="true" />
