@@ -78,6 +78,18 @@ Source: `design/tokens.json` (design reference) and `app/tokens.css` (runtime CS
 - Spacing 4/8/12/16/24/32/48/64/96. Radius: control 8, card 12, pill 999. Navigation shadow only.
 - Motion: feedback 140 ms, panel 220 ms, page 320 ms, hero 800 ms, stagger 60 ms, ease `cubic-bezier(.22,1,.36,1)`. Read them in JS with `motionSeconds()` from `lib/motion.ts`; never hardcode durations.
 
+## Styling
+
+- `app/tokens.css` holds every token and maps them into Tailwind v4:
+  - `@theme static`: font, type scale, radius and easing (`font-sans`, `text-display`/`text-h1`/`text-h2`/`text-body`/`text-label`/`text-caption`, `rounded-control`/`rounded-card`/`rounded-pill`, `ease-standard`).
+  - `:root` and `[data-theme="dark"]`: theme-dependent colors and shadow, spacing and motion durations.
+  - `@theme inline`: color and shadow utilities that follow the active theme (`bg-canvas`, `bg-surface`, `text-ink`, `text-muted`, `bg-accent`, `text-on-accent`, `border-border`, `ring-focus`, `text-error`, `text-warning`, `shadow-floating`, …).
+- Spacing uses Tailwind's default 4 px step, which equals the token scale (`p-1` = 4 px … `p-24` = 96 px).
+- Motion durations: `duration-(--motion-feedback)`, `duration-(--motion-panel)`, `duration-(--motion-page)`.
+- `dark:` targets `[data-theme="dark"]`, not the OS setting. Prefer theme-aware color utilities over `dark:` overrides. Use `motion-reduce:` for reduced motion.
+- **New components use Tailwind utilities with these tokens.** Never hardcode colors, sizes or durations.
+- **Do not rewrite existing CSS in bulk.** Legacy class-based CSS in `app/globals.css` migrates to Tailwind only when the component that uses it is touched for another reason; delete the old rules in the same commit.
+
 ## Motion rules
 
 - Marketing pages (Home, Sign in) may be expressive. Working pages (Upload, Processing, Review, Download) stay calm and functional. No WebGL in Review.

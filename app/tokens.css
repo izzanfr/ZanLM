@@ -1,3 +1,36 @@
+/*
+ * Design tokens. Mirrors design/tokens.json; keep both in sync.
+ *
+ * - @theme static: theme-independent scales. Tailwind creates utilities
+ *   (font-sans, text-display, rounded-card, ease-standard) and always emits
+ *   the variables on :root, so legacy CSS can keep using var(--radius-card).
+ * - :root / [data-theme="dark"]: values that change with the theme, plus
+ *   spacing and motion durations (read in JS by lib/motion.ts).
+ * - @theme inline: maps those runtime variables to Tailwind color and shadow
+ *   utilities (bg-canvas, text-ink, border-border, shadow-floating), so the
+ *   utilities follow the active theme.
+ *
+ * Spacing needs no mapping: Tailwind's default 4px step already matches the
+ * 4/8/12/16/24/32/48/64/96 scale (p-1, p-2, p-3, p-4, p-6, p-8, p-12, p-16, p-24).
+ * Motion durations have no Tailwind namespace; use duration-(--motion-panel).
+ */
+@theme static {
+  --font-sans: "Segoe UI", Arial, sans-serif;
+
+  --text-display: 64px;
+  --text-h1: 40px;
+  --text-h2: 28px;
+  --text-body: 16px;
+  --text-label: 14px;
+  --text-caption: 12px;
+
+  --radius-control: 8px;
+  --radius-card: 12px;
+  --radius-pill: 999px;
+
+  --ease-standard: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 :root {
   --canvas: #fff;
   --surface: #f3f5f8;
@@ -18,7 +51,6 @@
   --sample-ink: #142b4a;
   --sample-muted: #58677b;
   --selection: #426a9b;
-  --font-sans: "Segoe UI", Arial, sans-serif;
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -28,9 +60,6 @@
   --space-12: 48px;
   --space-16: 64px;
   --space-24: 96px;
-  --radius-control: 8px;
-  --radius-card: 12px;
-  --radius-pill: 999px;
   --shadow-nav: 0 8px 28px rgb(20 43 74 / 0.07);
   --motion-feedback: 140ms;
   --motion-panel: 220ms;
@@ -56,3 +85,30 @@
   --shadow-nav: 0 8px 28px rgb(0 0 0 / 0.12);
   color-scheme: dark;
 }
+
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-border: var(--border);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-on-accent: var(--on-accent);
+  --color-focus: var(--focus);
+  --color-error: var(--error);
+  --color-warning: var(--warning);
+  --color-glass: var(--glass);
+  --color-nav-active: var(--nav-active);
+  --color-sample-bg: var(--sample-bg);
+  --color-sample-panel: var(--sample-panel);
+  --color-sample-arch: var(--sample-arch);
+  --color-sample-mid: var(--sample-mid);
+  --color-sample-ink: var(--sample-ink);
+  --color-sample-muted: var(--sample-muted);
+  --color-selection: var(--selection);
+
+  --shadow-floating: var(--shadow-nav);
+}
+
+/* The app switches themes with data-theme, not the OS setting. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
