@@ -143,7 +143,8 @@ Must still be visible and usable:
 - `npm install` warns that `unrs-resolver`'s install script is not covered by `allowScripts`; approve it with `npm approve-scripts unrs-resolver` if lint misbehaves on a fresh clone.
 
 - **Login rate limit is one global bucket** (`createLoginLimiter` in `lib/auth/core.ts`). Anyone can lock sign-in for 60 seconds. Acceptable for loopback-only use; **must be replaced with a per-IP limiter (using a trusted proxy header) before any deploy.**
-- There is no `.env.local` yet. The owner runs `npm run setup` in PowerShell themselves. Process environment variables override `.env.local` in Next.js, so stale `ACCESS_CODE`/`SESSION_SECRET` in the Windows environment must be removed first.
+- `.env.local` exists; the owner created it by hand in PowerShell after `npm run setup` kept failing (fixed since, see the setup note below). Process environment variables override `.env.local` in Next.js, so stale `ACCESS_CODE`/`SESSION_SECRET` in the Windows environment must be removed first.
+- `npm run setup` was rewritten to read masked input in raw mode itself instead of through readline (`scripts/hidden-input.mjs`, unit tested). The original failure could not be reproduced by automation: the old script passed in classic cmd and PowerShell consoles, through `npm run`, and under a ConPTY host speaking Windows Terminal's win32-input-mode, including a leftover Enter key-up, a pasted line and slow typing. The most likely remaining cause is a code containing characters outside `A-Z a-z 0-9 _ -`, which the old script rejected with the same generic message. The new script says exactly why a code is rejected, shows `*` per character, retries up to three times, and passed 24 real-console cases and 16 ConPTY cases (valid, Backspace, mismatch then retry, symbols, Ctrl+C, existing file untouched, key-up, paste, slow typing).
 - Real-GPU frame rate of Threads was not measured; headless checks used software rendering. Check the Performance panel on the laptop.
 - Hidden-tab pausing of Threads relies on its own `document.hidden` check plus the browser pausing `requestAnimationFrame`; only the offscreen pause was measured.
 - Threads keeps a `requestAnimationFrame` loop alive while offscreen (it skips the draw); the cost is a no-op callback per frame.
@@ -156,5 +157,5 @@ Must still be visible and usable:
 ## Next steps
 
 1. Owner reviews T2 on the laptop: upload the sample on `/workspace`, watch the Processing page, and ideally try a deck with speaker notes and a PDF export.
-2. Owner runs `npm run setup` (if not done) and checks reduced motion with the checklist above.
+2. Owner checks reduced motion with the checklist above.
 3. Owner answers the ten decisions in `docs/T3-plan.md` section 12, reviews the prompt draft in section 4.3, and fills in `GEMINI_API_KEY` and the three model ids in `.env.local` themselves. Do not start T3 code before approval.

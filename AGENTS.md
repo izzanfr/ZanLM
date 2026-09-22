@@ -139,7 +139,8 @@ lib/background-motion.ts, lib/demo-motion.ts, lib/magnet.ts
 lib/use-media-query.ts live media query hook (reduced motion, pointer)
 design/              T0 tokens, mockups, logos, build_mockups.py
 docs/                HANDOFF.md, plan.md, T0-design.md
-scripts/             setup.mjs, smoke.mjs
+scripts/             setup.mjs (+ hidden-input.mjs, masked raw-mode input), smoke.mjs,
+                     extract-samples.mjs
 tests/               node --test files (*.test.ts)
 proxy.ts             redirects unauthenticated /workspace requests
 ```

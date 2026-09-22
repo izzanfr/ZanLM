@@ -16,7 +16,7 @@ npm run setup
 npm run dev
 ```
 
-Open http://127.0.0.1:3000. Setup asks for your own access code without echoing it and generates session/worker secrets. It creates `.env.local` only if that file does not exist; it never reads or overwrites it. Do not share, commit, print, or ask an agent to read that file. No Gemini key is needed for T1.
+Open http://127.0.0.1:3000. Setup asks for your own access code (12 to 128 characters: letters A-Z, digits, `_` and `-`), shows each typed character as `*`, explains any rejection without repeating the code, and generates session/worker secrets. It works in cmd, PowerShell and Windows Terminal. To paste, use right-click or Ctrl+Shift+V; Ctrl+V does not paste in a raw-mode prompt. It creates `.env.local` only if that file does not exist; it never reads or overwrites it. Do not share, commit, print, or ask an agent to read that file. No Gemini key is needed for T1.
 
 Alternatively, create `.env.local` yourself using the variable names in `.env.example`. `ACCESS_CODE` must be at least 8 characters; use 12 or more. `SESSION_SECRET` must be a random value of at least 32 characters. Restart the server after changing configuration. Without configuration, the public landing still works and sign-in shows setup guidance; there is no default password or bypass.
 
