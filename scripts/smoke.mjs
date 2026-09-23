@@ -155,6 +155,67 @@ async function checkJobRoutes({ origin, cookie, post, check }) {
     "slide image checks session",
   );
 
+  // Conversion. The smoke server has no Gemini key, so nothing is detected and
+  // no request leaves the machine; what is checked here is the route wiring,
+  // the guards, and that an image job is refused by the exporter rather than
+  // producing a broken file.
+  check(
+    (await post(`/api/jobs/${id}/convert`, undefined, { Cookie: cookie })).status,
+    202,
+    "convert accepted",
+  );
+  check(
+    (
+      await fetch(`${origin}/api/jobs/${id}/convert`, {
+        method: "POST",
+        headers: { Cookie: cookie },
+      })
+    ).status,
+    403,
+    "convert refuses a cross-origin request",
+  );
+  check(
+    (
+      await fetch(`${origin}/api/jobs/${id}/convert`, {
+        method: "POST",
+        headers: { Origin: origin },
+      })
+    ).status,
+    401,
+    "convert checks the session",
+  );
+  check(
+    (
+      await post(`/api/jobs/${id}/convert`, JSON.stringify({ coverPatches: "yes" }), {
+        Cookie: cookie,
+        "Content-Type": "application/json",
+      })
+    ).status,
+    400,
+    "convert validates its options",
+  );
+
+  let converted;
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    const response = await fetch(`${origin}/api/jobs/${id}`, { headers: { Cookie: cookie } });
+    converted = await response.json();
+    if (converted.convert.status !== "running" && converted.convert.status !== "idle") break;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  check(converted.convert.status, "failed", "an image job has no writer yet, and says so");
+  check(converted.convert.error, "export-kind-unsupported", "with a code, not a message");
+  check(converted.convert.hasOutput, false, "and no file to download");
+  check(
+    (await fetch(`${origin}/api/jobs/${id}/download`, { headers: { Cookie: cookie } })).status,
+    409,
+    "download refuses when there is no output",
+  );
+  check(
+    (await fetch(`${origin}/api/jobs/${id}/download`)).status,
+    401,
+    "download checks the session",
+  );
+
   // The pages have to render for real, not just the API.
   const uploadPage = await fetch(`${origin}/workspace`, { headers: { Cookie: cookie } });
   check(uploadPage.status, 200, "upload page loads");
@@ -170,6 +231,16 @@ async function checkJobRoutes({ origin, cookie, post, check }) {
   assert.ok(jobHtml.includes("Separating your slides"), "processing page shows its heading");
   assertions++;
   assert.ok(jobHtml.includes("Slides are ready"), "processing page shows the finished state");
+  assertions++;
+  assert.ok(
+    jobHtml.includes("Turn the text into text boxes"),
+    "processing page offers the convert step",
+  );
+  assertions++;
+  assert.ok(
+    jobHtml.includes("Slide images are sent to Google Gemini"),
+    "and discloses what leaves the machine",
+  );
   assertions++;
 
   check(

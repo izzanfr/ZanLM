@@ -168,6 +168,50 @@ export const en = {
     worker: "Worker · Not set up yet",
     noQuota: "No Gemini quota is used in this phase.",
   },
+  convert: {
+    title: "Turn the text into text boxes.",
+    body: "Each slide is read once, and the words come back as editable text boxes in a copy of your deck.",
+    disclosure:
+      "Slide images are sent to Google Gemini (free tier) for text detection. Google may use free-tier content to improve its products.",
+    start: "Convert",
+    running: "Converting…",
+    retry: "Retry the slides that failed",
+    cancel: "Stop converting",
+    download: "Download .pptx",
+    calls: (count: number) => `${count} Gemini ${count === 1 ? "request" : "requests"} so far`,
+    options: {
+      coverPatches: "Cover the old text with a patch",
+      coverPatchesHint:
+        "Off by default: on a textured slide the patch shows, and it does not always cover.",
+      dropWatermarks: "Leave watermark text out of the export",
+      removeWatermark: "Remove the NotebookLM watermark from the picture",
+    },
+    slide: {
+      queued: "Queued",
+      running: "Detecting…",
+      done: (blocks: number) => `${blocks} text ${blocks === 1 ? "block" : "blocks"}`,
+      cached: "From cache",
+      skipped: "Skipped (not a single-image slide)",
+      failed: "Failed",
+    },
+    reasons: {
+      unavailable: "the model was busy",
+      "quota-exhausted": "the free quota is used up",
+      "invalid-response": "the answer could not be read",
+      budget: "the job ran out of time",
+      error: "the request was refused",
+      mixed: "kept as it is",
+    } as Record<string, string>,
+    doneTitle: "Your editable deck is ready.",
+    doneBody:
+      "The original slide stays as the background; the text sits above it in native text boxes.",
+    failedTitle: "The conversion stopped.",
+    partial: (failed: number) =>
+      `${failed} ${failed === 1 ? "slide" : "slides"} could not be read. The deck still downloads, with those slides as pictures only.`,
+    interrupted:
+      "This conversion stopped before it finished, most likely because the server restarted. Starting it again only redoes what is missing.",
+    liveRegion: "Conversion progress",
+  },
   jobs: {
     notFound: "That job isn’t here.",
     wrongState: "This job can’t do that right now.",
@@ -179,6 +223,7 @@ export const en = {
     tooManyFiles: "Upload only one PPTX or PDF at a time.",
     tooManyImages: "That is more images than a job can hold.",
     slideNotFound: "That slide isn’t here.",
+    noOutput: "There is no file to download yet.",
   },
   errors: {
     unauthorized: "Please sign in to continue.",

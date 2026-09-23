@@ -48,7 +48,15 @@ export async function guardSession(
 }
 
 /** Job state as the pages see it. Source paths never leave the server. */
-export function publicJob(job: Job) {
+/**
+ * Job state as the pages see it.
+ *
+ * `converting` says whether this process really has the conversion in flight.
+ * A job.json that says "running" while nothing is running is a job that was
+ * interrupted, by a restart or a crash, and the page offers to resume it
+ * rather than showing a spinner that will never stop.
+ */
+export function publicJob(job: Job, options: { converting?: boolean } = {}) {
   return {
     id: job.id,
     status: job.status,
@@ -65,6 +73,17 @@ export function publicJob(job: Job) {
       mixed: slide.mixed,
       hidden: slide.hidden,
       notes: slide.notes,
+      detection: slide.detection,
     })),
+    convert: {
+      status:
+        job.convert.status === "running" && options.converting === false
+          ? ("interrupted" as const)
+          : job.convert.status,
+      calls: job.convert.calls,
+      hasOutput: job.convert.hasOutput,
+      error: job.convert.error,
+      options: job.convert.options,
+    },
   };
 }

@@ -7,6 +7,7 @@ import {
   detectType,
   isJobId,
   isRetryable,
+  slidesToDetect,
   jobPathSegments,
   jobSchema,
   JOB_VERSION,
@@ -254,4 +255,34 @@ test("a finished job cannot be restarted or edited", () => {
   }
   assert.equal(canTransition("created", "done"), false);
   assert.equal(canTransition("ready", "done"), false);
+});
+
+test("a conversion only sends the slides that still need it", () => {
+  const done = { status: "done", reason: null, blocks: 4, fromCache: false, model: "m" } as const;
+  const failed = {
+    status: "failed",
+    reason: "unavailable",
+    blocks: 0,
+    fromCache: false,
+    model: null,
+  } as const;
+  const malformed = { ...failed, reason: "invalid-response" } as const;
+  const slides = [
+    { index: 1, mixed: false, detection: null },
+    { index: 2, mixed: false, detection: done },
+    { index: 3, mixed: false, detection: failed },
+    { index: 4, mixed: true, detection: null },
+    { index: 5, mixed: false, detection: malformed },
+    { index: 6, mixed: true, detection: done },
+  ];
+  assert.deepEqual(
+    slidesToDetect(slides),
+    [1, 3],
+    "never detected and worth retrying; done, mixed and malformed are left alone",
+  );
+  // A finished job asks for nothing, which is what makes a second run free.
+  assert.deepEqual(
+    slidesToDetect(slides.map((slide) => ({ ...slide, mixed: false, detection: done }))),
+    [],
+  );
 });

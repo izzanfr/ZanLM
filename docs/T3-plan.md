@@ -468,6 +468,10 @@ On the Processing page, after extraction finishes:
   - Both re-check the id format, like every other job route.
 - The full Review page stays in T7.
 
+**Built on 2026-09-23.** `POST /api/jobs/[id]/convert` (session, same-origin, options validated against a strict schema with a 1 KB body cap, one conversion at a time per job) and `GET /api/jobs/[id]/download` (session, `attachment`, RFC 5987 name). The conversion runs in the Next process like extraction, and its cancel map is in memory, so `POST /cancel` stops a conversion without touching the job's own state. **Resume** is the shape of the runner: a slide whose detection is done is never sent again, a failed one only when sending it could help (`isRetryable`), and each slide is written to job.json as it lands. A job.json that says "running" while nothing is in flight is reported as `interrupted`, so a conversion cut short by a restart offers a retry instead of a spinner that never ends.
+
+Two things the routes cannot do yet: a PDF or image job is refused by the exporter with `export-kind-unsupported`, because the pptxgenjs writer is not written; and in production mode the development cache is off by design, so an offline conversion has nothing to reuse and every slide fails with `error`.
+
 ## 9. Verification in real PowerPoint
 
 **PowerPoint is installed on this PC:** Office Professional Plus 2019 (Click-to-Run, version 16.0.12527.22286), `C:\Program Files\Microsoft Office\root\Office16\POWERPNT.EXE`. Its COM automation (`PowerPoint.Application`) is registered.

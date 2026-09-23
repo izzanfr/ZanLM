@@ -37,21 +37,29 @@ History note: the previous agent (ChatGPT) built T0 and most of T1 without git a
 
 ## T3 commits (so far)
 
-| Commit    | Change                                                        |
-| --------- | ------------------------------------------------------------- |
-| `e0f9f2c` | T3 plan                                                       |
-| `f3b4de1` | Owner decisions recorded                                      |
-| `4282f94` | Detection prompt revised                                      |
-| `9664bf8` | Gemini SDK added                                              |
-| `61b7a89` | `docs/detection-prompt.md` and its mirrored constant          |
-| `06ef683` | Gemini client, fallback policy, cache                         |
-| `4473c93` | `npm run test:detect`                                         |
-| `5edaf73` | `--max-attempts` and `--budget-minutes` guards                |
-| `ab2f4dd` | Watermarks scored apart; spaces at run edges ignored          |
-| `971c20a` | Box refinement from the slide's pixels                        |
-| `6d83507` | NotebookLM watermark found and removed                        |
-| `124ed7f` | Refinement may only shrink; background read inside card edges |
-| `68ca79b` | Watermark filled with texture from the same slide             |
+| Commit    | Change                                                          |
+| --------- | --------------------------------------------------------------- |
+| `e0f9f2c` | T3 plan                                                         |
+| `f3b4de1` | Owner decisions recorded                                        |
+| `4282f94` | Detection prompt revised                                        |
+| `9664bf8` | Gemini SDK added                                                |
+| `61b7a89` | `docs/detection-prompt.md` and its mirrored constant            |
+| `06ef683` | Gemini client, fallback policy, cache                           |
+| `4473c93` | `npm run test:detect`                                           |
+| `5edaf73` | `--max-attempts` and `--budget-minutes` guards                  |
+| `ab2f4dd` | Watermarks scored apart; spaces at run edges ignored            |
+| `971c20a` | Box refinement from the slide's pixels                          |
+| `6d83507` | NotebookLM watermark found and removed                          |
+| `124ed7f` | Refinement may only shrink; background read inside card edges   |
+| `68ca79b` | Watermark filled with texture from the same slide               |
+| `d6410fb` | Mask core kept out of its own replacement, rim grown two pixels |
+| `820bafc` | Model, resolution and the bias verdict recorded                 |
+| `61b8302` | Fills whose grain the corner never had are refused              |
+| `7b83418` | Text box height computed instead of taken from the detection    |
+| `818af65` | Shared layout and the PPTX writer; `npm run export:sample`      |
+| `a73515b` | Cover patches off by default                                    |
+| `42be2f9` | job.json version 2: per-slide detection and the conversion      |
+| this      | Convert and download routes, resume, the Convert panel          |
 
 ## T2 commits
 
@@ -214,9 +222,10 @@ The T3 plan (7.8) allows a correction only when direction and magnitude agree ac
 
 ## Next steps
 
-1. **Set the machine up** (see "Moving to another computer" below): clone, `npm ci`, write `.env.local` with `npm run setup`, put `GEMINI_API_KEY` and the three model variables in it by hand, and unpack the samples-and-cache archive, which is git-ignored and therefore not on GitHub.
-2. **The export commits** (T3 plan, section 11, from commit 5), with the refined boxes, the watermark option and the resume behaviour in section 8. Nothing of the PPTX export exists yet.
-3. Owner checks reduced motion with the checklist above.
+1. **T4 (LaMa) is the next feature, and it is what both exports are waiting for**: the original text has to leave the background picture. The plan comes first (Python dependencies, model size, how the worker runs on Windows, what happens when it dies), then the owner's approval, then the code. The text-pixel mask it needs is the same one a cover patch should be sized from.
+2. **Set the machine up** (see "Moving to another computer" below): clone, `npm ci`, write `.env.local` with `npm run setup`, put `GEMINI_API_KEY` and the three model variables in it by hand, and unpack the samples-and-cache archive, which is git-ignored and therefore not on GitHub.
+3. **The rest of T3**: the pptxgenjs writer for PDF and image jobs, and `verify-pptx.ps1` (section 9), which is the only way to check sizes and wrapping in real PowerPoint.
+4. Owner checks reduced motion with the checklist above.
 
 The model comparison (old step 2) and the box-bias measurement (old step 3) are done; both are in the decision log below.
 

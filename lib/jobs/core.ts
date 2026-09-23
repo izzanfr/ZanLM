@@ -194,6 +194,21 @@ export function isRetryable(detection: Detection | null): boolean {
   return detection.reason !== "invalid-response";
 }
 
+/**
+ * Which slides a conversion has to send to Gemini, and which it must not.
+ * This is resume in one place: a slide that is already done is never sent
+ * again, a mixed slide is never sent at all, and a failed one goes back only
+ * when sending it could help.
+ */
+export function slidesToDetect(
+  slides: ReadonlyArray<{ index: number; mixed: boolean; detection: Detection | null }>,
+): number[] {
+  return slides
+    .filter((slide) => !slide.mixed && slide.detection?.status !== "done")
+    .filter((slide) => isRetryable(slide.detection))
+    .map((slide) => slide.index);
+}
+
 export const CONVERT_STATUSES = ["idle", "running", "done", "failed", "cancelled"] as const;
 
 export const convertSchema = z
