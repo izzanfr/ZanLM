@@ -19,7 +19,11 @@ const PRESENTATION_TYPE =
 const IMAGE_REL = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image";
 const SLIDE_REL = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide";
 
-const measure: Measurer = { width: (text) => text.length * 0.5, lineFactor: () => 1.2 };
+const measure: Measurer = {
+  width: (text) => text.length * 0.5,
+  lineFactor: () => 1.2,
+  inkFactor: () => 0.9,
+};
 const AREA: Rect = {
   xEmu: 0,
   yEmu: 0,

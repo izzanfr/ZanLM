@@ -8,6 +8,7 @@ import type { GeminiCall } from "../gemini/client.ts";
 import { parseDetection, type Block } from "../gemini/schema.ts";
 import { createServerCall, hasApiKey, serverModelChain } from "../gemini/server.ts";
 import { COVER_PATCHES_DEFAULT, imageArea, layoutSlide } from "../layout.ts";
+import { textMask } from "../text-mask.ts";
 import { createMeasurer, registerFonts } from "../export/font-metrics.ts";
 import { ringColor } from "../export/patch-color.ts";
 import { writeSourceDeck, type SlideExport } from "../export/source-deck.ts";
@@ -333,9 +334,24 @@ async function exportDeck(
     });
 
     const { area } = imageArea(image, slideSize);
-    const layout = layoutSlide(exportable, area, slideSize, measure, {
-      coverPatches: options.coverPatches ?? COVER_PATCHES_DEFAULT,
-    });
+    // The slide's own ink is what the text size follows; the detected box is
+    // only the fallback (docs/T4-plan.md, 3.1).
+    const masks = exportable.map((block) =>
+      textMask(image, block.box_2d, { textColor: block.color, lines: block.lines }),
+    );
+    const layout = layoutSlide(
+      exportable,
+      area,
+      slideSize,
+      measure,
+      { coverPatches: options.coverPatches ?? COVER_PATCHES_DEFAULT },
+      masks.map((found) => ({
+        linePitchPx: found.linePitchPx,
+        inkHeightPx: found.inkHeightPx,
+        imageHeightPx: image.height,
+        confident: found.confident,
+      })),
+    );
     const patchColors = options.coverPatches
       ? layout.blocks.map((laid) => {
           const [ymin, xmin, ymax, xmax] = laid.block.box_2d;

@@ -48,6 +48,7 @@ export function createMeasurer(): Measurer {
   const context = canvas.getContext("2d");
   const widths = new Map<string, number>();
   const factors = new Map<string, number>();
+  const inks = new Map<string, number>();
 
   const selectFont = (face: string, weight: "regular" | "bold", italic: boolean) => {
     const style = italic ? "italic" : "normal";
@@ -64,6 +65,19 @@ export function createMeasurer(): Measurer {
       const measured = context.measureText(text).width / REFERENCE_SIZE;
       widths.set(key, measured);
       return measured;
+    },
+    inkFactor(face, weight) {
+      const key = `${face}|${weight}`;
+      const known = inks.get(key);
+      if (known !== undefined) return known;
+      selectFont(face, weight, false);
+      // "Hgpy" reaches the cap height and the deepest descender of these faces.
+      const metrics = context.measureText("Hgpy");
+      const ink =
+        (metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent) / REFERENCE_SIZE;
+      const safe = Number.isFinite(ink) && ink > 0.3 ? ink : 0.9;
+      inks.set(key, safe);
+      return safe;
     },
     lineFactor(face) {
       const known = factors.get(face);

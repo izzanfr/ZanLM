@@ -24,6 +24,7 @@ import { normalizeToPng } from "../lib/jobs/images.ts";
 import { isPptxXmlPart, pictureEntries, readPptxStructure } from "../lib/jobs/pptx.ts";
 import { readZipEntries, XML_ZIP_LIMITS } from "../lib/jobs/zip.ts";
 import { COVER_PATCHES_DEFAULT, imageArea, layoutSlide } from "../lib/layout.ts";
+import { textMask } from "../lib/text-mask.ts";
 import { createMeasurer, registerFonts } from "../lib/export/font-metrics.ts";
 import { ringColor, TEXTURED_VARIATION } from "../lib/export/patch-color.ts";
 import { writeSourceDeck } from "../lib/export/source-deck.ts";
@@ -160,14 +161,21 @@ for (const entry of slides) {
   blocksTotal += blocks.length;
 
   const { area } = imageArea(image, { widthEmu: deck.widthEmu, heightEmu: deck.heightEmu });
+  const masks = blocks.map((block) =>
+    textMask(entry.image, block.box_2d, { textColor: block.color, lines: block.lines }),
+  );
   const layout = layoutSlide(
     blocks,
     area,
     { widthEmu: deck.widthEmu, heightEmu: deck.heightEmu },
     measure,
-    {
-      coverPatches: options.patches,
-    },
+    { coverPatches: options.patches },
+    masks.map((found) => ({
+      linePitchPx: found.linePitchPx,
+      inkHeightPx: found.inkHeightPx,
+      imageHeightPx: image.height,
+      confident: found.confident,
+    })),
   );
 
   const patchColors = layout.blocks.map((laid) => {

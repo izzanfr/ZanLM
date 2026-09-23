@@ -31,7 +31,7 @@ import { parseDetection } from "../lib/gemini/schema.ts";
 import { normalizeToPng } from "../lib/jobs/images.ts";
 import { isPptxXmlPart, pictureEntries, readPptxStructure } from "../lib/jobs/pptx.ts";
 import { readZipEntries, XML_ZIP_LIMITS } from "../lib/jobs/zip.ts";
-import { EMU_PER_POINT, imageArea, layoutBlock } from "../lib/layout.ts";
+import { EMU_PER_POINT, imageArea, layoutSlide } from "../lib/layout.ts";
 import { createMeasurer, registerFonts } from "../lib/export/font-metrics.ts";
 import { textMask } from "../lib/text-mask.ts";
 
@@ -86,6 +86,12 @@ function inkFactor(face, weight) {
   return (metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent) / 100;
 }
 
+/** Why a block could not follow the ink, when it could not. */
+const note = (laid) =>
+  ["size-floor", "size-from-box", "narrowed-to-fit"]
+    .filter((flag) => laid.flags.includes(flag))
+    .join(" ");
+
 const slideSize = { widthEmu: deck.widthEmu, heightEmu: deck.heightEmu };
 const slideHeightPt = deck.heightEmu / EMU_PER_POINT;
 const rows = [];
@@ -112,14 +118,29 @@ for (const slide of deck.slides) {
   const image = { data, width: info.width, height: info.height, channels: info.channels };
   const { area } = imageArea(image, slideSize);
 
-  for (const raw of parsed.detection.blocks) {
-    if (raw.role === "watermark") continue;
-    const block = { ...raw, box_2d: [...refineBox(image, raw.box_2d, raw.color).box] };
-    const found = textMask(image, block.box_2d, {
-      textColor: block.color,
-      lines: block.lines,
-    });
-    const laid = layoutBlock(block, area, slideSize, measure);
+  const list = parsed.detection.blocks
+    .filter((raw) => raw.role !== "watermark")
+    .map((raw) => ({ ...raw, box_2d: [...refineBox(image, raw.box_2d, raw.color).box] }));
+  const masks = list.map((block) =>
+    textMask(image, block.box_2d, { textColor: block.color, lines: block.lines }),
+  );
+  const layout = layoutSlide(
+    list,
+    area,
+    slideSize,
+    measure,
+    { coverPatches: false },
+    masks.map((found) => ({
+      linePitchPx: found.linePitchPx,
+      inkHeightPx: found.inkHeightPx,
+      imageHeightPx: image.height,
+      confident: found.confident,
+    })),
+  );
+
+  for (const [index, block] of list.entries()) {
+    const found = masks[index];
+    const laid = layout.blocks[index];
     const toPt = (px) => (px / image.height) * slideHeightPt;
 
     if (!found.confident) {
@@ -135,11 +156,25 @@ for (const slide of deck.slides) {
     if (found.linePitchPx !== null) {
       const original = toPt(found.linePitchPx);
       const chosen = laid.sizePt * measure.lineFactor(laid.face);
-      rows.push({ slide: slide.index, role: block.role, kind: "pitch", original, chosen });
+      rows.push({
+        slide: slide.index,
+        role: block.role,
+        kind: "pitch",
+        original,
+        chosen,
+        note: note(laid),
+      });
     } else {
       const original = toPt(found.inkHeightPx);
       const chosen = laid.sizePt * inkFactor(laid.face, block.weight);
-      rows.push({ slide: slide.index, role: block.role, kind: "ink", original, chosen });
+      rows.push({
+        slide: slide.index,
+        role: block.role,
+        kind: "ink",
+        original,
+        chosen,
+        note: note(laid),
+      });
     }
   }
 }
@@ -158,7 +193,8 @@ for (const row of rows) {
   console.log(
     `${String(row.slide).padStart(5)}  ${row.role.padEnd(11)}  ${row.kind.padEnd(7)}  ` +
       `${row.original.toFixed(1).padStart(11)}  ${row.chosen.toFixed(1).padStart(9)}  ` +
-      `${ratio.toFixed(2).padStart(5)}${ratio > 1.1 || ratio < 0.9 ? "  outside" : ""}`,
+      `${ratio.toFixed(2).padStart(5)}${ratio > 1.1 || ratio < 0.9 ? "  outside" : ""}` +
+      (row.note ? `  ${row.note}` : ""),
   );
 }
 

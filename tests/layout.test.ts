@@ -24,6 +24,7 @@ import {
 const fake: Measurer = {
   width: (text) => text.length * 0.5,
   lineFactor: () => 1.2,
+  inkFactor: () => 0.9,
 };
 
 const block = (over: Partial<Block> = {}): Block => ({
@@ -253,4 +254,76 @@ test("a slide lays out every block, with patches only when they are wanted", () 
 
   const off = layoutSlide(blocks, FULL, SLIDE_16_9, fake, { coverPatches: false });
   assert.ok(off.blocks.every((laid) => laid.patch === null));
+});
+
+// The rule the owner asked for on 2026-09-23: the size follows the ink on the
+// slide, because the detected box is 7 to 13% too short with a wide spread.
+test("the size follows the line pitch of the ink, not the detected box", () => {
+  const slideHeightPt = SLIDE_16_9.heightEmu / EMU_PER_POINT;
+  const imageHeightPx = 768;
+  // Two lines 30 px apart on a 768 px picture: the line height in points.
+  const pitchPt = (30 / imageHeightPx) * slideHeightPt;
+  const ink = { linePitchPx: 30, inkHeightPx: 14, imageHeightPx, confident: true };
+
+  // The same block in a box far too short and in one far too tall: the ink
+  // decides, so both come out at the same size.
+  const short = layoutBlock(
+    block({ text: "Satu\nDua", lines: 2, box_2d: [100, 100, 130, 500] }),
+    FULL,
+    SLIDE_16_9,
+    fake,
+    LAYOUT_DEFAULTS,
+    ink,
+  );
+  const tall = layoutBlock(
+    block({ text: "Satu\nDua", lines: 2, box_2d: [100, 100, 300, 500] }),
+    FULL,
+    SLIDE_16_9,
+    fake,
+    LAYOUT_DEFAULTS,
+    ink,
+  );
+  assert.equal(short.sizePt, tall.sizePt, "the box height no longer decides");
+  const chosen = short.sizePt * fake.lineFactor("Arial");
+  assert.ok(Math.abs(chosen / pitchPt - 1) <= 0.1, `${chosen} against ${pitchPt}`);
+});
+
+test("one line is sized from its ink height", () => {
+  const imageHeightPx = 768;
+  const ink = { linePitchPx: null, inkHeightPx: 20, imageHeightPx, confident: true };
+  const laid = layoutBlock(block({ text: "Judul" }), FULL, SLIDE_16_9, fake, LAYOUT_DEFAULTS, ink);
+  const inkPt = (20 / imageHeightPx) * (SLIDE_16_9.heightEmu / EMU_PER_POINT);
+  const chosen = laid.sizePt * fake.inkFactor("Arial", "regular");
+  assert.ok(Math.abs(chosen / inkPt - 1) <= 0.1, `${chosen} against ${inkPt}`);
+});
+
+test("a block whose ink cannot be read falls back to the box, and says so", () => {
+  const ink = { linePitchPx: null, inkHeightPx: 0, imageHeightPx: 768, confident: false };
+  const laid = layoutBlock(block(), FULL, SLIDE_16_9, fake, LAYOUT_DEFAULTS, ink);
+  const without = layoutBlock(block(), FULL, SLIDE_16_9, fake);
+  assert.equal(laid.sizePt, without.sizePt);
+  assert.ok(laid.flags.includes("size-from-box"));
+});
+
+test("a box that would grow into its neighbour is narrowed instead", () => {
+  const imageHeightPx = 768;
+  // Two blocks side by side, each in a narrow box, with a generous ink pitch:
+  // sized from the ink alone they would overlap.
+  const left = block({ text: "Kiri panjang sekali", box_2d: [400, 50, 460, 300] });
+  const right = block({ text: "Kanan panjang sekali", box_2d: [400, 320, 460, 600] });
+  const ink = [
+    { linePitchPx: 60, inkHeightPx: 40, imageHeightPx, confident: true },
+    { linePitchPx: 60, inkHeightPx: 40, imageHeightPx, confident: true },
+  ];
+  const layout = layoutSlide([left, right], FULL, SLIDE_16_9, fake, { coverPatches: false }, ink);
+  const [a, b] = layout.blocks.map((one) => one.rect);
+  const shared =
+    Math.max(0, Math.min(a.xEmu + a.widthEmu, b.xEmu + b.widthEmu) - Math.max(a.xEmu, b.xEmu)) *
+    Math.max(0, Math.min(a.yEmu + a.heightEmu, b.yEmu + b.heightEmu) - Math.max(a.yEmu, b.yEmu));
+  const smaller = Math.min(a.widthEmu * a.heightEmu, b.widthEmu * b.heightEmu);
+  assert.ok(shared / smaller <= LAYOUT_DEFAULTS.overlapShare, "the boxes no longer overlap");
+  assert.ok(
+    layout.blocks.some((one) => one.flags.includes("narrowed-to-fit")),
+    "and the block that gave way says so",
+  );
 });

@@ -32,6 +32,12 @@ export type SlideSize = { widthEmu: number; heightEmu: number };
 export type Measurer = {
   width(text: string, face: string, weight: "regular" | "bold", italic: boolean): number;
   lineFactor(face: string): number;
+  /**
+   * Cap height plus descender as a multiple of the font size: what a line of
+   * text really covers in ink, which is what a single line can be measured
+   * against in the picture.
+   */
+  inkFactor(face: string, weight: "regular" | "bold"): number;
 };
 
 export const LAYOUT_DEFAULTS = {
@@ -45,6 +51,8 @@ export const LAYOUT_DEFAULTS = {
   minimumSize: 6,
   /** A patch reaches this far beyond its block, as a share of slide height. */
   patchPadding: 0.006,
+  /** Boxes sharing more of the smaller one than this have grown into each other. */
+  overlapShare: 0.15,
 };
 
 /**
@@ -150,6 +158,22 @@ export function linesOf(runs: readonly Run[]): Run[][] {
   return lines;
 }
 
+/**
+ * What the slide's own pixels say about a block's text, from
+ * `lib/text-mask.ts`. Optional: a caller with no image (a test, a preview)
+ * still lays text out, from the detected box as before.
+ */
+export type InkMeasurement = {
+  /** Baseline to baseline in pixels, or null when the block has one line. */
+  linePitchPx: number | null;
+  /** One line's ink height in pixels, cap to descender. */
+  inkHeightPx: number;
+  /** The picture's height in pixels, so pixels become points. */
+  imageHeightPx: number;
+  /** False when the mask would not vouch for the numbers. */
+  confident: boolean;
+};
+
 export type LaidOutBlock = {
   block: Block;
   /** Where the text box goes. Its height is computed, never detected. */
@@ -162,7 +186,17 @@ export type LaidOutBlock = {
   flags: LayoutFlag[];
 };
 
-export type LayoutFlag = "size-floor" | "no-safe-face" | "low-confidence" | "moved-up";
+export type LayoutFlag =
+  | "size-floor"
+  | "no-safe-face"
+  | "low-confidence"
+  | "moved-up"
+  /** The size came from the detected box, because the ink could not be read. */
+  | "size-from-box"
+  /** The text needs more width than the original used; the box grew sideways. */
+  | "wider-than-box"
+  /** It grew into a neighbour, so it was laid out inside its own box instead. */
+  | "narrowed-to-fit";
 
 /**
  * One block's size and box.
@@ -180,6 +214,9 @@ export function layoutBlock(
   slide: SlideSize,
   measure: Measurer,
   options = LAYOUT_DEFAULTS,
+  ink?: InkMeasurement,
+  /** Keep the text inside the detected box's width, even when the ink is read. */
+  fitWidth = false,
 ): LaidOutBlock {
   const flags: LayoutFlag[] = [];
   const { face, flagged } = faceFor(block.family, block.weight);
@@ -191,9 +228,33 @@ export function layoutBlock(
   const lineCount = Math.max(1, lines.length);
   const factor = measure.lineFactor(face);
 
-  // 1. What the detected height allows, and 2. what the width allows. Widths
-  //    scale with the size, so one measurement at a reference size is enough.
-  const heightLimit = detected.heightEmu / EMU_PER_POINT / (lineCount * factor);
+  // 1. How tall one line may be.
+  //
+  //    The detected box was the ruler until 2026-09-23, and it is a bad one:
+  //    boxes come back 7 to 13% too short with a spread that made the chosen
+  //    size miss in both directions. So the ink on the slide is the ruler
+  //    when it can be read: the pitch from one line to the next is exactly
+  //    what one line occupies, and for a single line the ink height is
+  //    compared with the face's own cap-plus-descender. The detected box is
+  //    the fallback, and a block that falls back says so.
+  const slideHeightPt = slide.heightEmu / EMU_PER_POINT;
+  const fromBox = detected.heightEmu / EMU_PER_POINT / (lineCount * factor);
+  let heightLimit = fromBox;
+  if (ink && ink.confident && ink.imageHeightPx > 0) {
+    const toPoints = (pixels: number) => (pixels / ink.imageHeightPx) * slideHeightPt;
+    if (ink.linePitchPx !== null && ink.linePitchPx > 0) {
+      heightLimit = toPoints(ink.linePitchPx) / factor;
+    } else if (ink.inkHeightPx > 0) {
+      heightLimit = toPoints(ink.inkHeightPx) / measure.inkFactor(face, block.weight);
+    } else {
+      flags.push("size-from-box");
+    }
+  } else {
+    flags.push("size-from-box");
+  }
+
+  // 2. What the width allows. Widths scale with the size, so one measurement
+  //    at a reference size is enough.
   const widthAvailable = (detected.widthEmu / EMU_PER_POINT) * (1 - options.widthSafety);
   const widest = Math.max(
     ...lines.map((line) =>
@@ -203,8 +264,20 @@ export function layoutBlock(
   );
   const widthLimit = widest > 0 ? widthAvailable / widest : heightLimit;
 
-  // 3. The smaller of the two, rounded down, with a floor.
-  const wanted = Math.min(heightLimit, widthLimit);
+  // 3. Which limit decides.
+  //
+  //    With the ink read, the height wins: matching the line height of the
+  //    slide is the point, and the faces here are wider per character than
+  //    the deck's own, so obeying the detected width would shrink almost
+  //    every block (it decided 67 of 87 on the sample deck). The box is
+  //    allowed to grow sideways instead, which it already does below, and a
+  //    block wider than the space the original text used says so. The slide
+  //    itself is still a hard limit: text may never run off it.
+  const slideWidthPt = slide.widthEmu / EMU_PER_POINT;
+  const slideLimit = widest > 0 ? (slideWidthPt * (1 - options.widthSafety)) / widest : heightLimit;
+  const fromInk = ink?.confident === true && !flags.includes("size-from-box");
+  const wanted =
+    fromInk && !fitWidth ? Math.min(heightLimit, slideLimit) : Math.min(heightLimit, widthLimit);
   let sizePt = Math.floor(wanted / options.sizeStep) * options.sizeStep;
   if (sizePt < options.minimumSize) {
     sizePt = options.minimumSize;
@@ -217,6 +290,7 @@ export function layoutBlock(
 
   // 5. The width, at least what the text measures, anchored by alignment.
   const measuredWidth = Math.ceil(widest * sizePt * 1.15 * EMU_PER_POINT);
+  if (measuredWidth > detected.widthEmu) flags.push("wider-than-box");
   const widthEmu = Math.min(slide.widthEmu, Math.max(detected.widthEmu, measuredWidth));
   let xEmu = detected.xEmu;
   if (block.align === "center")
@@ -265,6 +339,9 @@ export type SlideLayout = {
   blocks: LaidOutBlock[];
 };
 
+/** One ink measurement per block, in the blocks' own order. */
+export type InkMeasurements = ReadonlyArray<InkMeasurement | undefined>;
+
 /**
  * Every block of one slide. Blocks keep the detection's order, so the shapes
  * are numbered the way the slide reads.
@@ -277,13 +354,48 @@ export function layoutSlide(
   options: { coverPatches: boolean } & Partial<typeof LAYOUT_DEFAULTS> = {
     coverPatches: COVER_PATCHES_DEFAULT,
   },
+  ink: InkMeasurements = [],
 ): SlideLayout {
   const settings = { ...LAYOUT_DEFAULTS, ...options };
+  let laid = blocks.map((block, index) =>
+    layoutBlock(block, area, slide, measure, settings, ink[index]),
+  );
+
+  // Sizing from the ink lets a box grow sideways, because these faces are
+  // wider than the deck's own. A box that grows into a neighbour is worse
+  // than one that is a little small, so it goes back to its own box. One
+  // pass: the narrowed box is never wider than the detected one, so it
+  // cannot start a new collision.
+  const grown = laid.filter((one) => one.flags.includes("wider-than-box"));
+  if (grown.length > 0) {
+    laid = laid.map((one, index) => {
+      if (!one.flags.includes("wider-than-box")) return one;
+      const collides = laid.some(
+        (other, otherIndex) => otherIndex !== index && overlapping(one.rect, other.rect, settings),
+      );
+      if (!collides) return one;
+      // Only the width goes back to the detected box; the line height still
+      // comes from the ink, so a narrowed block is as close to the original
+      // as it can be without touching its neighbour.
+      const narrowed = layoutBlock(blocks[index], area, slide, measure, settings, ink[index], true);
+      return { ...narrowed, flags: [...narrowed.flags, "narrowed-to-fit" as const] };
+    });
+  }
+
   return {
     area,
-    blocks: blocks.map((block) => {
-      const laid = layoutBlock(block, area, slide, measure, settings);
-      return { ...laid, patch: options.coverPatches ? patchFor(laid.rect, slide, settings) : null };
-    }),
+    blocks: laid.map((one) => ({
+      ...one,
+      patch: options.coverPatches ? patchFor(one.rect, slide, settings) : null,
+    })),
   };
+}
+
+/** Two boxes overlap when they share more than a sliver of the smaller one. */
+function overlapping(a: Rect, b: Rect, options: typeof LAYOUT_DEFAULTS): boolean {
+  const width = Math.min(a.xEmu + a.widthEmu, b.xEmu + b.widthEmu) - Math.max(a.xEmu, b.xEmu);
+  const height = Math.min(a.yEmu + a.heightEmu, b.yEmu + b.heightEmu) - Math.max(a.yEmu, b.yEmu);
+  if (width <= 0 || height <= 0) return false;
+  const smaller = Math.min(a.widthEmu * a.heightEmu, b.widthEmu * b.heightEmu);
+  return smaller > 0 && (width * height) / smaller > options.overlapShare;
 }
