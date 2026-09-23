@@ -120,7 +120,7 @@ Each commit passes `npm run check` and `npm run build`; commits touching routes 
 8. `test: verify the exported deck in PowerPoint` — `verify-pptx.ps1` (section 7).
 9. `docs: close T4` — measured results, timings on both devices, and what is still open.
 
-Cover patches stay off by default throughout. Whether commit 3 changes that is the owner's call, made on the crops, not in advance.
+Cover patches stay off by default throughout (owner, 2026-09-23: the reason is the shape, not the mask, since a flat rectangle always shows on a textured slide). One thing is added in commit 7 instead: **when the worker is not running, the Convert panel offers the patch as the substitute it is**, with one line on what the difference is, so the choice between reading every line twice and seeing a plain block is the owner's and not a default.
 
 ## 6. How the result is measured
 

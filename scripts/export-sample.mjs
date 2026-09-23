@@ -23,8 +23,8 @@ import { parseDetection } from "../lib/gemini/schema.ts";
 import { normalizeToPng } from "../lib/jobs/images.ts";
 import { isPptxXmlPart, pictureEntries, readPptxStructure } from "../lib/jobs/pptx.ts";
 import { readZipEntries, XML_ZIP_LIMITS } from "../lib/jobs/zip.ts";
-import { COVER_PATCHES_DEFAULT, imageArea, layoutSlide } from "../lib/layout.ts";
-import { textMask } from "../lib/text-mask.ts";
+import { COVER_PATCHES_DEFAULT, imageArea, inkRect, layoutSlide } from "../lib/layout.ts";
+import { inkBounds, textMask } from "../lib/text-mask.ts";
 import { createMeasurer, registerFonts } from "../lib/export/font-metrics.ts";
 import { ringColor, TEXTURED_VARIATION } from "../lib/export/patch-color.ts";
 import { writeSourceDeck } from "../lib/export/source-deck.ts";
@@ -176,6 +176,10 @@ for (const entry of slides) {
       imageHeightPx: image.height,
       confident: found.confident,
     })),
+    masks.map((found) => {
+      const bounds = inkBounds(found);
+      return bounds ? inkRect(bounds, image, area) : undefined;
+    }),
   );
 
   const patchColors = layout.blocks.map((laid) => {

@@ -321,7 +321,14 @@ export function layoutBlock(
  */
 export const COVER_PATCHES_DEFAULT = false;
 
-/** The rectangle that hides the original text under a block. */
+/**
+ * The rectangle that hides the original text under a block.
+ *
+ * It is sized from the text it has to hide, never from the new text box: the
+ * two are not the same rectangle, because the new box is as tall as the text
+ * needs and may be wider than the original. Sizing it from the detected box
+ * is what left the old text peeking out on slides 4 and 12 (owner, 2026-09-23).
+ */
 export function patchFor(rect: Rect, slide: SlideSize, options = LAYOUT_DEFAULTS): Rect {
   const padding = Math.round(slide.heightEmu * options.patchPadding);
   const xEmu = Math.max(0, rect.xEmu - padding);
@@ -334,6 +341,22 @@ export function patchFor(rect: Rect, slide: SlideSize, options = LAYOUT_DEFAULTS
   };
 }
 
+/** Where the original text really sits, in EMU, from its mask. */
+export function inkRect(
+  bounds: { x0: number; y0: number; x1: number; y1: number },
+  image: { width: number; height: number },
+  area: Rect,
+): Rect {
+  const xEmu = area.xEmu + Math.round((bounds.x0 / image.width) * area.widthEmu);
+  const yEmu = area.yEmu + Math.round((bounds.y0 / image.height) * area.heightEmu);
+  return {
+    xEmu,
+    yEmu,
+    widthEmu: area.xEmu + Math.round((bounds.x1 / image.width) * area.widthEmu) - xEmu,
+    heightEmu: area.yEmu + Math.round((bounds.y1 / image.height) * area.heightEmu) - yEmu,
+  };
+}
+
 export type SlideLayout = {
   area: Rect;
   blocks: LaidOutBlock[];
@@ -341,6 +364,9 @@ export type SlideLayout = {
 
 /** One ink measurement per block, in the blocks' own order. */
 export type InkMeasurements = ReadonlyArray<InkMeasurement | undefined>;
+
+/** Where each block's original text sits, for the patches. Same order. */
+export type InkRects = ReadonlyArray<Rect | undefined>;
 
 /**
  * Every block of one slide. Blocks keep the detection's order, so the shapes
@@ -355,6 +381,7 @@ export function layoutSlide(
     coverPatches: COVER_PATCHES_DEFAULT,
   },
   ink: InkMeasurements = [],
+  inkRects: InkRects = [],
 ): SlideLayout {
   const settings = { ...LAYOUT_DEFAULTS, ...options };
   let laid = blocks.map((block, index) =>
@@ -384,9 +411,11 @@ export function layoutSlide(
 
   return {
     area,
-    blocks: laid.map((one) => ({
+    blocks: laid.map((one, index) => ({
       ...one,
-      patch: options.coverPatches ? patchFor(one.rect, slide, settings) : null,
+      // The patch covers the original text. Without a mask there is nothing
+      // better than the new box, and the block says so through its flags.
+      patch: options.coverPatches ? patchFor(inkRects[index] ?? one.rect, slide, settings) : null,
     })),
   };
 }

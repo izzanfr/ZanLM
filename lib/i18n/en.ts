@@ -182,7 +182,7 @@ export const en = {
     options: {
       coverPatches: "Cover the old text with a patch",
       coverPatchesHint:
-        "Off by default: on a textured slide the patch shows, and it does not always cover.",
+        "Off by default. The patch now covers the old text exactly, but it is a flat rectangle, so on a textured slide you see it. Until the background can be cleaned properly, it is the choice between reading every line twice and seeing a plain block.",
       dropWatermarks: "Leave watermark text out of the export",
       removeWatermark: "Remove the NotebookLM watermark from the picture",
     },

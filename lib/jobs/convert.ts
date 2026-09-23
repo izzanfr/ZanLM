@@ -7,8 +7,8 @@ import { cacheDirectory, createFileCache } from "../gemini/cache.ts";
 import type { GeminiCall } from "../gemini/client.ts";
 import { parseDetection, type Block } from "../gemini/schema.ts";
 import { createServerCall, hasApiKey, serverModelChain } from "../gemini/server.ts";
-import { COVER_PATCHES_DEFAULT, imageArea, layoutSlide } from "../layout.ts";
-import { textMask } from "../text-mask.ts";
+import { COVER_PATCHES_DEFAULT, imageArea, inkRect, layoutSlide } from "../layout.ts";
+import { inkBounds, textMask } from "../text-mask.ts";
 import { createMeasurer, registerFonts } from "../export/font-metrics.ts";
 import { ringColor } from "../export/patch-color.ts";
 import { writeSourceDeck, type SlideExport } from "../export/source-deck.ts";
@@ -351,6 +351,10 @@ async function exportDeck(
         imageHeightPx: image.height,
         confident: found.confident,
       })),
+      masks.map((found) => {
+        const bounds = inkBounds(found);
+        return bounds ? inkRect(bounds, image, area) : undefined;
+      }),
     );
     const patchColors = options.coverPatches
       ? layout.blocks.map((laid) => {

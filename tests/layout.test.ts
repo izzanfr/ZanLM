@@ -327,3 +327,27 @@ test("a box that would grow into its neighbour is narrowed instead", () => {
     "and the block that gave way says so",
   );
 });
+
+test("a patch covers the original text, not the new text box", () => {
+  // The new box is taller and wider than the text it replaces; the patch has
+  // to follow the text, which is what the detected-box patch got wrong.
+  const laid = layoutBlock(block({ text: "Judul" }), FULL, SLIDE_16_9, fake);
+  const ink = { xEmu: 1_000_000, yEmu: 900_000, widthEmu: 700_000, heightEmu: 120_000 };
+  const fromInk = patchFor(ink, SLIDE_16_9);
+  const fromBox = patchFor(laid.rect, SLIDE_16_9);
+
+  const padding = Math.round(SLIDE_16_9.heightEmu * LAYOUT_DEFAULTS.patchPadding);
+  assert.equal(fromInk.xEmu, ink.xEmu - padding);
+  assert.equal(fromInk.widthEmu, ink.widthEmu + 2 * padding);
+  assert.notDeepEqual(fromInk, fromBox, "the two rectangles are not the same");
+
+  // Through a slide layout: the patch follows the rectangle it is given.
+  const layout = layoutSlide([block()], FULL, SLIDE_16_9, fake, { coverPatches: true }, [], [ink]);
+  assert.deepEqual(layout.blocks[0].patch, fromInk);
+});
+
+test("with no mask the patch falls back to the new box", () => {
+  const layout = layoutSlide([block()], FULL, SLIDE_16_9, fake, { coverPatches: true });
+  assert.ok(layout.blocks[0].patch);
+  assert.deepEqual(layout.blocks[0].patch, patchFor(layout.blocks[0].rect, SLIDE_16_9));
+});
