@@ -257,8 +257,85 @@ export function toPixelRect(area: RelativeRect, image: { width: number; height: 
  * only taken when it clearly differs from the background further out, and
  * only its own color is flooded, so a frame line or ornament that touches it
  * is left alone. Everything is kept inside `area`, the deck-wide clean area.
+ *
+ * The result is finally grown by MASK_DILATE pixels, because the mark does not
+ * end where its letters do: anti-aliased edges, the text's drop shadow and the
+ * pill's own shadow all reach a little further, and anything left of them reads
+ * as a ghost of the words. Two values: 2 for the core, which is repainted
+ * outright, and 1 for the grown rim, where the new texture is allowed to fade
+ * into the slide. Every pixel of the mark itself is core, so no original pixel
+ * of it can be blended back in.
  */
-export function markMask(image: RawImage, letters: Rect, area: Rect): Uint8Array {
+export const MASK_DILATE = 2;
+
+export function markMask(
+  image: RawImage,
+  letters: Rect,
+  area: Rect,
+  dilate: number = MASK_DILATE,
+): Uint8Array {
+  return growMask(coreMask(image, letters, area), image, area, dilate);
+}
+
+/** How much detail a pixel carries over its 5x5 surroundings, in luma. */
+function detailAt(image: RawImage, x: number, y: number): number {
+  const { width: W, height: H, channels } = image;
+  const luma = (px: number, py: number) => {
+    const offset = (py * W + px) * channels;
+    const read = (c: number) => image.data[offset + Math.min(c, channels - 1)];
+    return 0.299 * read(0) + 0.587 * read(1) + 0.114 * read(2);
+  };
+  let sum = 0;
+  let samples = 0;
+  for (let dy = -2; dy <= 2; dy += 1) {
+    for (let dx = -2; dx <= 2; dx += 1) {
+      sum += luma(Math.min(Math.max(x + dx, 0), W - 1), Math.min(Math.max(y + dy, 0), H - 1));
+      samples += 1;
+    }
+  }
+  return luma(x, y) - sum / samples;
+}
+
+/** A pixel with this much detail is something of the slide's own, not a shadow. */
+const ORNAMENT_DETAIL = 8;
+
+/**
+ * Grows the core by `dilate` pixels (a square neighbourhood), staying inside
+ * the deck-wide clean area so an ornament outside it can never be touched.
+ * Core pixels keep the value 2, the grown rim gets 1.
+ *
+ * The rim only takes plain pixels. The gold frame runs a pixel or two above
+ * the mark on this deck, and growing into it changed the bar by up to 98 of
+ * 255 in luma: a detailed pixel is the slide's own, never the mark's shadow.
+ */
+function growMask(core: Uint8Array, image: RawImage, area: Rect, dilate: number): Uint8Array {
+  const { width: W } = image;
+  const out = new Uint8Array(core.length);
+  for (let index = 0; index < core.length; index += 1) if (core[index]) out[index] = 2;
+  if (dilate <= 0) return out;
+  for (let y = area.y0; y < area.y1; y += 1) {
+    for (let x = area.x0; x < area.x1; x += 1) {
+      if (out[y * W + x]) continue;
+      if (Math.abs(detailAt(image, x, y)) >= ORNAMENT_DETAIL) continue;
+      let near = false;
+      for (let dy = -dilate; dy <= dilate && !near; dy += 1) {
+        for (let dx = -dilate; dx <= dilate; dx += 1) {
+          const nx = x + dx;
+          const ny = y + dy;
+          if (nx < area.x0 || ny < area.y0 || nx >= area.x1 || ny >= area.y1) continue;
+          if (core[ny * W + nx]) {
+            near = true;
+            break;
+          }
+        }
+      }
+      if (near) out[y * W + x] = 1;
+    }
+  }
+  return out;
+}
+
+function coreMask(image: RawImage, letters: Rect, area: Rect): Uint8Array {
   const { width: W, height: H, channels } = image;
   const mask = new Uint8Array(W * H);
   const inside = (x: number, y: number) =>
@@ -700,8 +777,12 @@ function maskBox(mask: Uint8Array, W: number, H: number): Rect | null {
  * 1 deep inside the mask, fading to 0 at its rim, over `width` pixels. The
  * fade runs inwards: pixels outside the mask, an ornament touching it for
  * instance, keep their exact values, and the pasted patch still has no hard
- * edge. The mask already reaches two pixels past the letters, so the faded
- * rim sits on background, not on the mark.
+ * edge.
+ *
+ * Core pixels (value 2, the mark itself) are always a full 1: blending there
+ * would mix the mark back into its own replacement, which is exactly what left
+ * a readable ghost behind. The fade therefore lives entirely in the grown rim,
+ * which sits on background.
  */
 function feather(mask: Uint8Array, W: number, H: number, width: number): Float32Array {
   const alpha = new Float32Array(W * H);
@@ -748,7 +829,7 @@ function feather(mask: Uint8Array, W: number, H: number, width: number): Float32
   }
   for (let index = 0; index < alpha.length; index += 1) {
     if (!mask[index]) continue;
-    alpha[index] = Math.min(1, depth[index] / Math.max(1, width));
+    alpha[index] = mask[index] === 2 ? 1 : Math.min(1, depth[index] / Math.max(1, width));
   }
   return alpha;
 }

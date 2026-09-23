@@ -9,6 +9,7 @@ import {
   FILL_DEFAULTS,
   findMark,
   markMask,
+  MASK_DILATE,
   removeMark,
   toPixelRect,
   toRelative,
@@ -276,7 +277,7 @@ test("the mask covers the letters and, on light slides, the pill", () => {
   const darkMark = findMark(dark)!;
   const darkArea = toPixelRect(decideForDeck([toRelative(darkMark, dark)]).area!, dark);
   const darkMask = markMask(dark, darkMark, darkArea);
-  const covered = (mask: Uint8Array, x: number, y: number) => mask[y * W + x] === 1;
+  const covered = (mask: Uint8Array, x: number, y: number) => mask[y * W + x] !== 0;
   assert.ok(covered(darkMask, 1300, 752), "letters are masked");
   assert.ok(!covered(darkMask, 1300, 742), "plain background above is not");
 
@@ -287,6 +288,71 @@ test("the mask covers the letters and, on light slides, the pill", () => {
   const lightMask = markMask(light, lightMark, lightArea);
   assert.ok(covered(lightMask, 1300, 752), "letters are masked");
   assert.ok(covered(lightMask, 1270, 743), "the pill above the letters is masked too");
+});
+
+test("the mask is grown past the letters, and the letters stay core", () => {
+  const image = slide([13, 24, 38]);
+  mark(image, [230, 230, 230]);
+  const found = findMark(image)!;
+  const area = toPixelRect(decideForDeck([toRelative(found, image)]).area!, image);
+  const tight = markMask(image, found, area, 0);
+  const grown = markMask(image, found, area);
+
+  const count = (mask: Uint8Array, value?: number) =>
+    mask.reduce(
+      (total, cell) => total + ((value === undefined ? cell !== 0 : cell === value) ? 1 : 0),
+      0,
+    );
+  assert.ok(count(grown) > count(tight), "growing adds pixels");
+  assert.equal(count(grown, 2), count(tight), "the core is the ungrown mask");
+
+  // Every pixel of the mark is core, so the blend can never mix it back in.
+  for (let index = 0; index < tight.length; index += 1) {
+    if (tight[index]) assert.equal(grown[index], 2, `pixel ${index} is not core`);
+  }
+  // The rim lies within MASK_DILATE pixels of the core, and inside the area.
+  for (let y = 0; y < H; y += 1) {
+    for (let x = 0; x < W; x += 1) {
+      if (grown[y * W + x] !== 1) continue;
+      assert.ok(x >= area.x0 && x < area.x1 && y >= area.y0 && y < area.y1, "rim leaves the area");
+      let near = false;
+      for (let dy = -MASK_DILATE; dy <= MASK_DILATE && !near; dy += 1) {
+        for (let dx = -MASK_DILATE; dx <= MASK_DILATE; dx += 1) {
+          if (tight[(y + dy) * W + (x + dx)]) near = true;
+        }
+      }
+      assert.ok(near, `rim pixel ${x},${y} is too far from the core`);
+    }
+  }
+});
+
+test("core pixels are repainted outright, with no trace of the original", () => {
+  const image = slide([13, 24, 38], 6);
+  mark(image, [230, 230, 230]);
+  const found = findMark(image)!;
+  const area = toPixelRect(decideForDeck([toRelative(found, image)]).area!, image);
+  const mask = markMask(image, found, area);
+  const cleaned = fillFromTexture(image, mask).image;
+
+  // Brighten the mark hard, then fill through the very same mask. A core pixel
+  // that still carried any weight of the original would move with it; the
+  // result must be identical instead.
+  const louder = { ...image, data: Uint8Array.from(image.data) };
+  for (let index = 0; index < mask.length; index += 1) {
+    if (mask[index] !== 2) continue;
+    for (let c = 0; c < 3; c += 1) louder.data[index * 3 + c] = 255;
+  }
+  const loudCleaned = fillFromTexture(louder, mask).image;
+  for (let index = 0; index < mask.length; index += 1) {
+    if (mask[index] !== 2) continue;
+    for (let c = 0; c < 3; c += 1) {
+      assert.equal(
+        loudCleaned.data[index * 3 + c],
+        cleaned.data[index * 3 + c],
+        `core pixel ${index} depends on what was under it`,
+      );
+    }
+  }
 });
 
 test("with removal on, blocks labelled watermark are not exported", () => {
