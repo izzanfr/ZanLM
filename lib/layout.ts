@@ -236,6 +236,17 @@ export function layoutBlock(
   return { block, rect, patch: null, sizePt, face, lines, flags };
 }
 
+/**
+ * Cover patches are off by default (owner decision 2026-09-23, after looking at
+ * the first exported deck). On a textured deck a patch reads as a flat rectangle
+ * whatever colour it takes, and because it is sized from the detected box, which
+ * is too short, it does not even cover the original text: on the sample deck the
+ * old text still showed under the new one. The option stays, but a patch built
+ * from the detected box is not good enough to be the default; sizing it from the
+ * text pixels themselves is the fix, and that same mask is what T4 gives LaMa.
+ */
+export const COVER_PATCHES_DEFAULT = false;
+
 /** The rectangle that hides the original text under a block. */
 export function patchFor(rect: Rect, slide: SlideSize, options = LAYOUT_DEFAULTS): Rect {
   const padding = Math.round(slide.heightEmu * options.patchPadding);
@@ -263,7 +274,9 @@ export function layoutSlide(
   area: Rect,
   slide: SlideSize,
   measure: Measurer,
-  options: { coverPatches: boolean } & Partial<typeof LAYOUT_DEFAULTS> = { coverPatches: true },
+  options: { coverPatches: boolean } & Partial<typeof LAYOUT_DEFAULTS> = {
+    coverPatches: COVER_PATCHES_DEFAULT,
+  },
 ): SlideLayout {
   const settings = { ...LAYOUT_DEFAULTS, ...options };
   return {

@@ -6,7 +6,8 @@
  *
  *   npm run export:sample -- [--deck <file in samples/>] [--model <id>]
  *                            [--media-resolution default|low|medium|high]
- *                            [--no-patches] [--keep-watermark] [--out <file>]
+ *                            [--patches] [--no-patches] [--keep-watermark]
+ *                            [--out <file>]
  *
  * The output goes to data/export/, which is git-ignored. The console prints
  * counts and sizes only, never slide text.
@@ -22,7 +23,7 @@ import { parseDetection } from "../lib/gemini/schema.ts";
 import { normalizeToPng } from "../lib/jobs/images.ts";
 import { isPptxXmlPart, pictureEntries, readPptxStructure } from "../lib/jobs/pptx.ts";
 import { readZipEntries, XML_ZIP_LIMITS } from "../lib/jobs/zip.ts";
-import { imageArea, layoutSlide } from "../lib/layout.ts";
+import { COVER_PATCHES_DEFAULT, imageArea, layoutSlide } from "../lib/layout.ts";
 import { createMeasurer, registerFonts } from "../lib/export/font-metrics.ts";
 import { ringColor, TEXTURED_VARIATION } from "../lib/export/patch-color.ts";
 import { writeSourceDeck } from "../lib/export/source-deck.ts";
@@ -43,7 +44,7 @@ function parseArguments(argv) {
     deck: "Skin_Barrier_Alchemy.pptx",
     model: "gemini-3.5-flash-lite",
     resolution: "default",
-    patches: true,
+    patches: COVER_PATCHES_DEFAULT,
     removeWatermark: true,
     out: null,
   };

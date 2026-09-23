@@ -277,10 +277,12 @@ The layout is defined with explicit EMU values, not a rounded inch preset. A tes
 ### 7.2 Layers per slide, bottom to top
 
 1. **"Background (original slide)"**: the extracted PNG at the exact slide size, locked in place.
-2. **"Cover patch NN"** (optional, on by default until T4): a filled rectangle behind each text block. It uses the median color of a thin ring just outside the block, with the text pixels excluded, and is padded by 0.6% of the slide height. If the ring's color variance is high (a textured or gradient background), the patch is still drawn but the slide is flagged "patch on textured background", so you know to check it.
+2. **"Cover patch NN"** (optional, **off by default** since 2026-09-23): a filled rectangle behind each text block. It uses the median color of a thin ring just outside the block, with the text pixels excluded, and is padded by 0.6% of the slide height. If the ring's color variance is high (a textured or gradient background), the patch is still drawn but the slide is flagged "patch on textured background", so you know to check it.
 3. **"Text NN – role"**: the native text box.
 
-The Convert screen has two checkboxes: **cover patches** (on by default) and **drop watermarks** (off by default, so watermark blocks are kept as ordinary text boxes). With "drop watermarks" on, a `watermark` block gets no text box. If cover patches are also on, the patch still hides the mark in the background picture. If they are off, the mark stays visible in the picture until T4 can remove it.
+The Convert screen has two checkboxes: **cover patches** (off by default, see the note below) and **drop watermarks** (off by default, so watermark blocks are kept as ordinary text boxes). With "drop watermarks" on, a `watermark` block gets no text box. If cover patches are also on, the patch still hides the mark in the background picture. If they are off, the mark stays visible in the picture until T4 can remove it.
+
+**Why patches are off (owner decision 2026-09-23, after opening the first exported deck).** Two things went wrong on the sample deck. On a textured background the patch reads as a flat rectangle whatever colour it is given, so it is more visible than what it hides. Worse, it is sized from the detected box, and those boxes are 7 to 13% too short: on slides 4 and 12 the original text still showed under the new text box ("n" of a heading, "(Abu-abu)", a whole paragraph). **If the option is used at all, the patch must be sized from a mask of the original text pixels**, found with the same pixel machinery `lib/box-refine.ts` already uses, not from the detected box. That mask is the same one T4 hands to LaMa, so it is built once and used twice. Until then the honest state is that both exports are temporary: with patches the slide shows flat rectangles, without them every line shows twice, because the original text is still in the background picture. **T4 is the fix, not the patch.**
 
 ### 7.3 Fonts
 
