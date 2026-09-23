@@ -67,20 +67,38 @@ Today `layoutBlock` takes its height limit from the detected box, and that box i
 - Request size cap (the slide images are about 1.3 MP; a 20 MB cap is generous) and a per-request timeout.
 - Logs: sizes, device and milliseconds. **Never the image, never the mask, never a job id.**
 
-### 4.2 Model and dependencies, to be confirmed before anything is installed
+### 4.2 Model and dependencies: the answers (checked 2026-09-23, nothing installed)
 
-This is the part the owner approves, and the numbers must be checked rather than assumed. Before installing, I will report, from the real index and the real repository:
+Every number below comes from the real index or the real repository on 2026-09-23, not from memory. **Nothing is installed; this section is the report the owner asked for before anything is.**
 
-| To confirm                                                                                      | Why it matters                                                                                                                                                                                                                                     |
-| ----------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `big-lama` checkpoint size on disk                                                              | It is downloaded once and kept in `worker/models/`, which is git-ignored                                                                                                                                                                           |
-| **The weights' licence**                                                                        | The LaMa code is Apache-2.0, but the released `big-lama` weights have their own terms, and at least one release is non-commercial. A personal, local tool is very likely fine, but the terms go in the decision log before the download, not after |
-| Whether the packaged wrappers (`simple-lama-inpainting`, `iopaint`) pull in more than they need | Fewer dependencies is better than convenience here                                                                                                                                                                                                 |
-| Torch wheel size for CUDA against CPU-only                                                      | The CUDA wheel is by far the biggest download of this project                                                                                                                                                                                      |
+**Licences.**
 
-Everything is installed into `worker/.venv`, never into the Anaconda base environment, and pinned in `worker/requirements.txt`. **Nothing is installed until the owner has seen those four answers.**
+| What                                                     | Licence                                                                                                                                                                                                                                             | Source                                          |
+| -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| LaMa code (`advimman/lama`)                              | **Apache-2.0**, in full, with no commercial restriction                                                                                                                                                                                             | the repository's own `LICENSE` file             |
+| `big-lama` weights (`smartywu/big-lama` on Hugging Face) | model card tag **apache-2.0**                                                                                                                                                                                                                       | the model card                                  |
+| LaMa exported to ONNX (`Carve/LaMa-ONNX`)                | model card tag **apache-2.0**                                                                                                                                                                                                                       | the model card                                  |
+| MI-GAN, the obvious permissive-looking alternative       | repository MIT, **but its weights are not**: the model is distilled from a Co-Mod-GAN teacher under the NVIDIA Source Code License-NC, whose non-commercial term carries over to derivatives, and the weights ship with their own `LICENSE-WEIGHTS` | the repository's issue on exactly this question |
 
-The fallback if the licence or the size is not acceptable: OpenCV's Telea and Navier-Stokes inpainting, which need no model at all and are already allowed by the master plan for plain backgrounds. They are visibly worse on ornament, so they are a fallback, not the plan.
+So the expectation is inverted: **the LaMa weights are the permissive option and MI-GAN's are the restricted one.** I searched the LaMa repository, its README and the model cards for a non-commercial or research-only clause and found none. One honest residual: the weights were trained on Places2, whose dataset terms are their own document; nothing in what is distributed passes a restriction on, but a dataset licence is not something a model card settles. Since nothing non-commercial is being taken on, **no note is needed in AGENTS.md or the README** — and if we ever switch to MI-GAN, that is exactly when the note the owner asked for goes in, saying that the weights are non-commercial and that this blocks commercial use and a public deployment.
+
+**Sizes, and two ways to run it.**
+
+| Package or file                          | Size                                 | Note                                                          |
+| ---------------------------------------- | ------------------------------------ | ------------------------------------------------------------- |
+| `torch` 2.14.0, Windows cp312, from PyPI | **118 MB**                           | the CPU build; CUDA builds are not on PyPI and are far larger |
+| `onnxruntime` 1.30.0, Windows cp312      | **13.6 MB**                          | MIT                                                           |
+| `onnxruntime-gpu` 1.30.0, Windows cp312  | 153 MB                               | only if the GPU path is wanted later                          |
+| `big-lama.zip` (the Torch checkpoint)    | **363.8 MB** (381,428,720 bytes)     | unzipped to a `.pt`                                           |
+| `lama.onnx` (`Carve/LaMa-ONNX`)          | **197.9 MB**                         | the same network, exported                                    |
+| `opencv-python-headless` 5.0.0.93        | 41.8 MB                              | needed by the fallback, and useful for mask work              |
+| `fastapi` + `uvicorn`                    | about 0.2 MB plus small dependencies |                                                               |
+
+**`simple-lama-inpainting` is not worth using.** It pins `pillow <10` and `numpy <2`, which fights every modern wheel, and it downloads the checkpoint at runtime from a GitHub release, which is exactly the kind of implicit download this project should not have.
+
+**Recommendation, following the owner's instruction to try CPU first.** Start with **ONNX Runtime and `lama.onnx`**: 13.6 MB of runtime and 198 MB of weights, against 118 MB of runtime and 364 MB of weights for the Torch path, with no CUDA download either way. It is also the smaller thing to get right: one session, one input, no Torch version matrix. The area to inpaint is small, so the worker crops the slide to the masked region plus a margin, pads to what the network wants, and inpaints a tile rather than the whole 1376 x 768 picture, which is what should keep a slide well under the ten seconds the owner set as the bar. **If the measured time is above it**, the choices are, in order: a bigger tile budget on CPU, then `onnxruntime-gpu` (153 MB, no CUDA toolkit download because the driver here is 591.74 with CUDA 13.1), then the Torch CUDA build as the last resort.
+
+What is still unmeasured, and will be measured in commit 5 rather than guessed: seconds per slide on this machine for both the CPU and GPU paths, and peak memory.
 
 ### 4.3 Running it on Windows
 
