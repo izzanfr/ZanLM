@@ -18,6 +18,7 @@
     "test:extract": "node --experimental-strip-types scripts/extract-samples.mjs",
     "gemini:check": "node --env-file-if-exists=.env.local --experimental-strip-types scripts/gemini-check.mjs",
     "test:detect": "node --env-file-if-exists=.env.local --experimental-strip-types scripts/test-detect.mjs",
+    "test:sizes": "node --experimental-strip-types scripts/test-sizes.mjs",
     "export:sample": "node --env-file-if-exists=.env.local --experimental-strip-types scripts/export-sample.mjs"
   },
   "dependencies": {

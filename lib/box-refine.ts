@@ -69,11 +69,11 @@ export const REFINE_DEFAULTS: RefineOptions = {
   maxShiftY: 0.6,
 };
 
-type Rect = { x0: number; y0: number; x1: number; y1: number }; // x1, y1 exclusive
+export type Rect = { x0: number; y0: number; x1: number; y1: number }; // x1, y1 exclusive
 
 const clamp = (value: number, low: number, high: number) => Math.max(low, Math.min(high, value));
 
-function toPixels(box: Box2d, image: RawImage): Rect {
+export function toPixels(box: Box2d, image: RawImage): Rect {
   return {
     x0: clamp(Math.floor((box[1] / 1000) * image.width), 0, image.width),
     y0: clamp(Math.floor((box[0] / 1000) * image.height), 0, image.height),
@@ -139,7 +139,7 @@ function difference(image: RawImage, offset: number, reference: number[]): numbe
 }
 
 /** Runs of active indexes, merging runs whose gap is at most `gap`. */
-function components(active: boolean[], gap: number): Array<[number, number]> {
+export function components(active: boolean[], gap: number): Array<[number, number]> {
   const runs: Array<[number, number]> = [];
   let start = -1;
   let lastActive = -1;
@@ -213,18 +213,41 @@ export function refineBox(
   return first;
 }
 
-function refineWith(
+/** The ink of one box: which pixels are the text, and where it was looked for. */
+export type InkMask = {
+  /** The area searched, in image pixels; the mask is this size. */
+  search: Rect;
+  width: number;
+  height: number;
+  /** 1 where a pixel is ink, indexed y * width + x inside `search`. */
+  mask: Uint8Array;
+  /** The background colour the ink was told apart from. */
+  background: number[];
+  /** How far from that colour a pixel had to be to count as ink. */
+  threshold: number;
+};
+
+/**
+ * Which pixels inside a box are the text, from the pixels alone.
+ *
+ * Ink differs from the background by more than the background differs from
+ * itself. The bar is twice the 75th percentile of the ring, not the 95th:
+ * text from a neighbouring block often touches the ring and must not raise
+ * it. Where the detected text colour matches enough pixels, only those count,
+ * which is what keeps gold runes out of a gold title; otherwise contrast
+ * alone decides. Long straight runs are frame lines and rules, not letters,
+ * so they are dropped.
+ *
+ * This is the one ink detector: `refineBox` tightens a box with it, and
+ * `lib/text-mask.ts` keeps the mask itself for inpainting, patches and sizes.
+ */
+export function findInk(
   image: RawImage,
-  box: Box2d,
+  original: Rect,
   textColor: string | undefined,
   options: RefineOptions,
   backgroundFrom: "ring" | "inside",
-): RefineResult {
-  const original = toPixels(box, image);
-  const originalWidth = original.x1 - original.x0;
-  const originalHeight = original.y1 - original.y0;
-  if (originalWidth < 2 || originalHeight < 2) return { refined: false, box, reason: "empty-box" };
-
+): InkMask {
   const search: Rect = {
     x0: clamp(original.x0 - Math.round(options.marginX * image.width), 0, image.width),
     y0: clamp(original.y0 - Math.round(options.marginY * image.height), 0, image.height),
@@ -234,9 +257,6 @@ function refineWith(
   const width = search.x1 - search.x0;
   const height = search.y1 - search.y0;
 
-  // Ink differs from the background by more than the background differs from
-  // itself. Twice the 75th percentile of the ring, not the 95th: text from a
-  // neighbouring block often touches the ring and must not raise the bar.
   let background: number[];
   let noise: number;
   if (backgroundFrom === "inside") {
@@ -268,11 +288,8 @@ function refineWith(
       }
     }
   }
-  // Prefer pixels in the text's own color. If Gemini's color is clearly off
-  // (hardly any pixel matches it), fall back to contrast alone.
   const mask = text && coloredCount >= 0.25 * contrastCount ? colored : contrast;
 
-  // Long straight lines are frames and rules, not letters.
   const columnCounts = new Array<number>(width).fill(0);
   const rowCounts = new Array<number>(height).fill(0);
   for (let y = 0; y < height; y += 1) {
@@ -290,6 +307,24 @@ function refineWith(
   for (let y = 0; y < height; y += 1) {
     if (rowCounts[y] > 0.85 * width) for (let x = 0; x < width; x += 1) mask[y * width + x] = 0;
   }
+
+  return { search, width, height, mask, background, threshold };
+}
+
+function refineWith(
+  image: RawImage,
+  box: Box2d,
+  textColor: string | undefined,
+  options: RefineOptions,
+  backgroundFrom: "ring" | "inside",
+): RefineResult {
+  const original = toPixels(box, image);
+  const originalWidth = original.x1 - original.x0;
+  const originalHeight = original.y1 - original.y0;
+  if (originalWidth < 2 || originalHeight < 2) return { refined: false, box, reason: "empty-box" };
+
+  const found = findInk(image, original, textColor, options, backgroundFrom);
+  const { search, width, height, mask } = found;
 
   // Rows first: text lines, keeping the ones Gemini's box mostly covers.
   const rowActive = new Array<boolean>(height).fill(false);
