@@ -447,7 +447,7 @@ The mark is removed in T3, not T4, and the detection prompt is unchanged.
 
 On the Processing page, after extraction finishes:
 
-- A **Convert** button, with the cover-patch and drop-watermark checkboxes (section 7.2), a **"Remove NotebookLM watermark"** checkbox (section 7.9, off by default) and one line of disclosure above it: "Slide images are sent to Google Gemini (free tier) for text detection. Google may use free-tier content to improve its products." The line is there because this is the first phase where anything leaves the laptop.
+- A **Convert** button, with the cover-patch and drop-watermark checkboxes (section 7.2), a **"Remove NotebookLM watermark"** checkbox (section 7.9, **on by default** since the owner accepted the measured result on 2026-09-23) and one line of disclosure above it: "Slide images are sent to Google Gemini (free tier) for text detection. Google may use free-tier content to improve its products." The line is there because this is the first phase where anything leaves the laptop.
 - Per-slide status:
   - Queued, Detecting, Done, From cache, Skipped (mixed), Failed with a reason.
   - A live region announces the counts.

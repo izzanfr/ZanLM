@@ -17,7 +17,8 @@
     "check": "npm run format:check && npm run lint && npm run typecheck && npm test",
     "test:extract": "node --experimental-strip-types scripts/extract-samples.mjs",
     "gemini:check": "node --env-file-if-exists=.env.local --experimental-strip-types scripts/gemini-check.mjs",
-    "test:detect": "node --env-file-if-exists=.env.local --experimental-strip-types scripts/test-detect.mjs"
+    "test:detect": "node --env-file-if-exists=.env.local --experimental-strip-types scripts/test-detect.mjs",
+    "export:sample": "node --env-file-if-exists=.env.local --experimental-strip-types scripts/export-sample.mjs"
   },
   "dependencies": {
     "@google/genai": "^2.24.0",
