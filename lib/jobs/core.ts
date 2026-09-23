@@ -69,14 +69,23 @@ export function slideFileName(index: number): string {
   return `${String(index).padStart(3, "0")}.png`;
 }
 
+export function detectionFileName(index: number): string {
+  return `${String(index).padStart(3, "0")}.json`;
+}
+
+/** The export always has the same name on disk; the download route renames it. */
+export const OUTPUT_FILE = "deck.pptx";
+
 export function notesFileName(index: number): string {
   return `${String(index).padStart(3, "0")}.txt`;
 }
 
-export type JobFolder = "source" | "slides" | "notes";
+export type JobFolder = "source" | "slides" | "notes" | "detect" | "output";
 
-const JOB_FOLDERS: ReadonlyArray<JobFolder> = ["source", "slides", "notes"];
-const JOB_FILE_PATTERN = /^\d{3}\.(pptx|pdf|png|jpg|txt)$/;
+const JOB_FOLDERS: ReadonlyArray<JobFolder> = ["source", "slides", "notes", "detect", "output"];
+// Detection answers are stored per slide as JSON, the export as one file whose
+// name is generated here; a display name never reaches the file system.
+const JOB_FILE_PATTERN = /^(\d{3}\.(pptx|pdf|png|jpg|txt|json)|deck\.pptx)$/;
 
 // The single gate between a job id and the file system. It throws instead of
 // returning null so a forgotten check is a crash, not a traversal. Everything
@@ -160,6 +169,67 @@ export const sourceFileSchema = z
   })
   .strict();
 
+/** What happened to one slide's detection, so a retry knows what to redo. */
+export const DETECTION_STATUSES = ["done", "failed", "skipped"] as const;
+
+export const detectionSchema = z
+  .object({
+    status: z.enum(DETECTION_STATUSES),
+    /** A short code, never a message from an exception or from Gemini. */
+    reason: z.string().max(40).nullable(),
+    /** Blocks kept after validation, for the per-slide line on the page. */
+    blocks: z.number().int().nonnegative(),
+    /** True when the answer came from the development cache, so it cost nothing. */
+    fromCache: z.boolean(),
+    model: z.string().max(80).nullable(),
+  })
+  .strict();
+
+export type Detection = z.infer<typeof detectionSchema>;
+
+/** Whether a failed slide is worth sending again. */
+export function isRetryable(detection: Detection | null): boolean {
+  if (!detection) return true;
+  if (detection.status !== "failed") return false;
+  return detection.reason !== "invalid-response";
+}
+
+export const CONVERT_STATUSES = ["idle", "running", "done", "failed", "cancelled"] as const;
+
+export const convertSchema = z
+  .object({
+    status: z.enum(CONVERT_STATUSES),
+    /** Real Gemini requests this job has made, over all its runs. */
+    calls: z.number().int().nonnegative(),
+    /** Set once the file is on disk, so download knows it can serve it. */
+    hasOutput: z.boolean(),
+    error: z.string().max(200).nullable(),
+    options: z
+      .object({
+        coverPatches: z.boolean(),
+        dropWatermarks: z.boolean(),
+        removeWatermark: z.boolean(),
+      })
+      .strict(),
+    startedAt: z.number().int().nonnegative(),
+    finishedAt: z.number().int().nonnegative(),
+  })
+  .strict();
+
+export type Convert = z.infer<typeof convertSchema>;
+
+export function newConvert(): Convert {
+  return {
+    status: "idle",
+    calls: 0,
+    hasOutput: false,
+    error: null,
+    options: { coverPatches: false, dropWatermarks: true, removeWatermark: true },
+    startedAt: 0,
+    finishedAt: 0,
+  };
+}
+
 export const slideSchema = z
   .object({
     index: z.number().int().positive(),
@@ -173,8 +243,13 @@ export const slideSchema = z
     mixed: z.boolean(),
     hidden: z.boolean(),
     notes: z.boolean(),
+    /** Null until this slide has been through detection at least once. */
+    detection: detectionSchema.nullable(),
   })
   .strict();
+
+/** job.json layout. Version 2 added per-slide detection and the conversion. */
+export const JOB_VERSION = 2;
 
 export const JOB_STATUSES = [
   "created",
@@ -188,7 +263,7 @@ export const JOB_STATUSES = [
 
 export const jobSchema = z
   .object({
-    version: z.literal(1),
+    version: z.literal(JOB_VERSION),
     id: jobIdSchema,
     status: z.enum(JOB_STATUSES),
     kind: z.enum(["pptx", "pdf", "images"]).nullable(),
@@ -200,6 +275,7 @@ export const jobSchema = z
     total: z.number().int().nonnegative(),
     // A short English code, never a raw exception message.
     error: z.string().max(200).nullable(),
+    convert: convertSchema,
   })
   .strict();
 
@@ -209,7 +285,7 @@ export type SourceFile = z.infer<typeof sourceFileSchema>;
 
 export function newJob(id: string, now: number): Job {
   return {
-    version: 1,
+    version: JOB_VERSION,
     id,
     status: "created",
     kind: null,
@@ -220,6 +296,27 @@ export function newJob(id: string, now: number): Job {
     done: 0,
     total: 0,
     error: null,
+    convert: newConvert(),
+  };
+}
+
+/**
+ * Version 1 files were written before T3, so they have no detection or
+ * conversion state. They are upgraded in memory on read, which costs nothing
+ * and keeps a job folder from an earlier run usable.
+ */
+export function upgradeJob(raw: unknown): unknown {
+  if (typeof raw !== "object" || raw === null) return raw;
+  const job = raw as Record<string, unknown>;
+  if (job.version !== 1) return raw;
+  const slides = Array.isArray(job.slides) ? job.slides : [];
+  return {
+    ...job,
+    version: JOB_VERSION,
+    slides: slides.map((slide) =>
+      typeof slide === "object" && slide !== null ? { detection: null, ...slide } : slide,
+    ),
+    convert: newConvert(),
   };
 }
 

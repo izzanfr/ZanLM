@@ -143,6 +143,7 @@ async function extractPptxJob(job: Job, signal: AbortSignal): Promise<Slide[]> {
       mixed: slide.mixed,
       hidden: slide.hidden,
       notes: slide.notes !== null,
+      detection: null,
     });
     await reportProgress(job.id, index, deck.slides.length);
   }
@@ -175,6 +176,7 @@ async function extractPdfJob(job: Job, maxPages: number, signal: AbortSignal): P
       mixed: page.mixed,
       hidden: false,
       notes: false,
+      detection: null,
     });
   }
   return slides;
@@ -201,6 +203,7 @@ async function extractImageJob(job: Job, signal: AbortSignal): Promise<Slide[]> 
       mixed: false,
       hidden: false,
       notes: false,
+      detection: null,
     });
     await reportProgress(job.id, index, ordered.length);
   }

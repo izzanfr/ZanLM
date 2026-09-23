@@ -1,7 +1,14 @@
 import "server-only";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { jobPathSegments, jobSchema, newJob, type Job, type JobFolder } from "./core.ts";
+import {
+  jobPathSegments,
+  jobSchema,
+  newJob,
+  upgradeJob,
+  type Job,
+  type JobFolder,
+} from "./core.ts";
 
 export function jobsRoot(): string {
   return join(process.cwd(), "data", "jobs");
@@ -19,7 +26,7 @@ export function jobFilePath(id: string, folder: JobFolder, file: string): string
 
 export async function createJobFolders(id: string): Promise<void> {
   const base = jobDirectory(id);
-  for (const folder of ["source", "slides", "notes"] as const) {
+  for (const folder of ["source", "slides", "notes", "detect", "output"] as const) {
     await mkdir(join(base, folder), { recursive: true });
   }
 }
@@ -27,7 +34,7 @@ export async function createJobFolders(id: string): Promise<void> {
 export async function readJob(id: string): Promise<Job | null> {
   try {
     const raw = await readFile(join(jobDirectory(id), "job.json"), "utf8");
-    const parsed = jobSchema.safeParse(JSON.parse(raw));
+    const parsed = jobSchema.safeParse(upgradeJob(JSON.parse(raw)));
     return parsed.success ? parsed.data : null;
   } catch {
     return null;

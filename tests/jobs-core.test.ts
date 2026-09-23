@@ -6,8 +6,10 @@ import {
   createJobId,
   detectType,
   isJobId,
+  isRetryable,
   jobPathSegments,
   jobSchema,
+  JOB_VERSION,
   limitsFromEnv,
   newJob,
   planJobKind,
@@ -15,6 +17,7 @@ import {
   slideFileName,
   sortImageNames,
   storedFileName,
+  upgradeJob,
   type JobFolder,
   type Limits,
   type SourceType,
@@ -185,8 +188,59 @@ test("job.json rejects anything the app did not write", () => {
     mixed: false,
     hidden: false,
     notes: true,
+    detection: null,
   };
   assert.ok(jobSchema.safeParse({ ...job, slides: [slide] }).success);
+  assert.equal(
+    jobSchema.safeParse({ ...job, slides: [{ ...slide, detection: undefined }] }).success,
+    false,
+    "a slide written before version 2 is upgraded on read, never accepted raw",
+  );
+});
+
+test("a version 1 job.json is upgraded on read, and nothing else is", () => {
+  const job = newJob(createJobId(), Date.now());
+  const old = {
+    ...job,
+    version: 1,
+    slides: [
+      {
+        index: 1,
+        file: "001.png",
+        width: 100,
+        height: 100,
+        origin: "image",
+        mixed: false,
+        hidden: false,
+        notes: false,
+      },
+    ],
+  };
+  delete (old as Record<string, unknown>).convert;
+  const upgraded = jobSchema.safeParse(upgradeJob(old));
+  assert.ok(upgraded.success, "the old file still parses");
+  assert.equal(upgraded.data?.version, JOB_VERSION);
+  assert.equal(upgraded.data?.slides[0].detection, null, "its slides have no detection yet");
+  assert.equal(upgraded.data?.convert.status, "idle");
+  assert.equal(upgraded.data?.convert.hasOutput, false);
+
+  // A file that already is version 2 comes back untouched.
+  const current = { ...job, convert: { ...job.convert, calls: 7 } };
+  assert.deepEqual(upgradeJob(current), current);
+});
+
+test("a failed slide is retried only when sending it again could help", () => {
+  assert.ok(isRetryable(null), "a slide that was never detected is always retried");
+  const base = { blocks: 0, fromCache: false, model: "m" } as const;
+  assert.ok(isRetryable({ ...base, status: "failed", reason: "unavailable" }));
+  assert.ok(isRetryable({ ...base, status: "failed", reason: "quota-exhausted" }));
+  assert.equal(
+    isRetryable({ ...base, status: "failed", reason: "invalid-response" }),
+    false,
+    "the same picture and prompt would come back just as malformed",
+  );
+  assert.equal(isRetryable({ ...base, status: "done", reason: null, blocks: 3 }), false);
+  assert.equal(isRetryable({ ...base, status: "skipped", reason: "mixed" }), false);
 });
 
 test("a finished job cannot be restarted or edited", () => {
