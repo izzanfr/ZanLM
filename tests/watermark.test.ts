@@ -193,6 +193,34 @@ test("a textured background keeps its grain instead of a flat patch", () => {
   assert.ok(inside.max < 200, "no letter left");
 });
 
+test("a speckled mirror is refused over a corner that has no speckles", () => {
+  // A plain corner on the right; the left half, which the mirror copies from,
+  // is covered in bright specks. Their detail matches any other speck, so the
+  // mirror used to win on detail alone and paste a starfield into the corner.
+  const image = slide([18, 26, 44], 2);
+  let state = 11;
+  const random = () => {
+    state = (state * 1103515245 + 12345) & 0x7fffffff;
+    return state / 0x7fffffff;
+  };
+  for (let index = 0; index < 4000; index += 1) {
+    const x = Math.floor(random() * (W / 2));
+    const y = 700 + Math.floor(random() * 68);
+    fill(image, x, y, x + 1, y + 1, [230, 235, 255]);
+  }
+  mark(image, [230, 230, 230]);
+  const found = findMark(image);
+  assert.ok(found);
+  const rect = toPixelRect(decideForDeck([toRelative(found, image)]).area!, image);
+  const result = removeMark(image, found, rect);
+
+  assert.notEqual(result.method, "mirror", "the speckled half must not be copied over");
+  // Nothing as bright as a speck is left in the corner the mark occupied.
+  const stats = regionStats(result.image, found.x0, found.y0, found.x1, found.y1);
+  assert.ok(stats.max < 120, `brightest pixel left ${stats.max}`);
+  assert.equal(findMark(result.image), null, "the mark itself is gone");
+});
+
 test("the mirrored other corner brings back an ornament the mark covered", () => {
   // A deck laid out symmetrically: the same bar low on the left and the right.
   const clean = slide([178, 172, 165], 3);

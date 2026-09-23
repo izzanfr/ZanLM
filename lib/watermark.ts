@@ -300,6 +300,13 @@ function detailAt(image: RawImage, x: number, y: number): number {
 const ORNAMENT_DETAIL = 8;
 
 /**
+ * Which part of the tail describes a fill's grain. Speckles can be a few
+ * percent of the pixels (scattered stars) or a third of them (a dense
+ * texture), so the measure has to sit well out in the tail to see both.
+ */
+const GRAIN_QUANTILE = 0.98;
+
+/**
  * Grows the core by `dilate` pixels (a square neighbourhood), staying inside
  * the deck-wide clean area so an ornament outside it can never be touched.
  * Core pixels keep the value 2, the grown rim gets 1.
@@ -557,9 +564,89 @@ export const FILL_DEFAULTS = {
   align: 6,
   /** Step of the sideways search, in pixels. */
   step: 2,
+  /**
+   * How far a candidate's own grain may stand from the grain of the real
+   * background around the mark, as a factor either way. The stars scattered
+   * over this deck are a perfect detail match for each other, so matching
+   * detail alone let the mirror paste stars into a corner that had none.
+   */
+  grainRatio: 2.5,
+  /** Grain difference below this is too small to see, whatever the factor. */
+  grainFloor: 1,
+  /** Candidates whose grain is measured, per kind, best match first. */
+  tries: 6,
+  /** The coarse sweep steps this many search steps at a time. */
+  coarse: 4,
+  /** How many coarse winners are then searched around, step by step. */
+  refine: 6,
 };
 
 type Source = { dx: number; dy: number; mirror: boolean };
+
+/**
+ * How much detail a pixel carries over its surroundings: what the blend keeps
+ * from a patch. Judging candidates on this and not on plain colour lets a
+ * patch from a lighter part of the same gradient win, which is right, because
+ * the blend levels that difference out anyway.
+ */
+/**
+ * `detailIn` for every pixel at once. The search below asks for it tens of
+ * millions of times, so the 5x5 mean comes from a summed-area table, one
+ * channel at a time: three additions per pixel instead of twenty-five reads.
+ * Pixels within the window of the edge keep the plain path, which repeats the
+ * edge pixel, so the result is identical to `detailIn` everywhere.
+ */
+function detailMapOf(image: RawImage): Float64Array {
+  const { width: W, height: H, channels } = image;
+  const map = new Float64Array(W * H * 3);
+  const sums = new Float64Array((W + 1) * (H + 1));
+  for (let c = 0; c < 3; c += 1) {
+    const channel = Math.min(c, channels - 1);
+    sums.fill(0);
+    for (let y = 0; y < H; y += 1) {
+      let row = 0;
+      for (let x = 0; x < W; x += 1) {
+        row += image.data[(y * W + x) * channels + channel];
+        sums[(y + 1) * (W + 1) + x + 1] = sums[y * (W + 1) + x + 1] + row;
+      }
+    }
+    for (let y = 0; y < H; y += 1) {
+      for (let x = 0; x < W; x += 1) {
+        const value = image.data[(y * W + x) * channels + channel];
+        if (x < 2 || y < 2 || x >= W - 2 || y >= H - 2) {
+          map[(y * W + x) * 3 + c] = detailIn(image, x, y, c);
+          continue;
+        }
+        const x0 = x - 2;
+        const y0 = y - 2;
+        const x1 = x + 3;
+        const y1 = y + 3;
+        const total =
+          sums[y1 * (W + 1) + x1] -
+          sums[y0 * (W + 1) + x1] -
+          sums[y1 * (W + 1) + x0] +
+          sums[y0 * (W + 1) + x0];
+        map[(y * W + x) * 3 + c] = value - total / 25;
+      }
+    }
+  }
+  return map;
+}
+
+function detailIn(image: RawImage, x: number, y: number, c: number): number {
+  const { width: W, height: H, channels } = image;
+  const read = (px: number, py: number) =>
+    image.data[(py * W + px) * channels + Math.min(c, channels - 1)];
+  let sum = 0;
+  let samples = 0;
+  for (let dy = -2; dy <= 2; dy += 1) {
+    for (let dx = -2; dx <= 2; dx += 1) {
+      sum += read(Math.min(Math.max(x + dx, 0), W - 1), Math.min(Math.max(y + dy, 0), H - 1));
+      samples += 1;
+    }
+  }
+  return read(x, y) - sum / samples;
+}
 
 /**
  * Copies texture from elsewhere on the same slide over the masked pixels.
@@ -601,32 +688,59 @@ export function fillFromTexture(
    * colour lets a patch from a lighter part of the same gradient win, which
    * is right, because the blend levels that difference out anyway.
    */
-  const detail = (x: number, y: number, c: number) => {
-    let sum = 0;
-    let samples = 0;
-    for (let dy = -2; dy <= 2; dy += 1) {
-      for (let dx = -2; dx <= 2; dx += 1) {
-        const sx = Math.min(Math.max(x + dx, 0), W - 1);
-        const sy = Math.min(Math.max(y + dy, 0), H - 1);
-        sum += read(sx, sy, c);
-        samples += 1;
-      }
-    }
-    return read(x, y, c) - sum / samples;
+  const detailMap = detailMapOf(image);
+  const detail = (x: number, y: number, c: number) => detailMap[(y * W + x) * 3 + c];
+
+  /**
+   * How lively a set of pixels is: how far the liveliest tenth of them stand
+   * from their surroundings. Not the mean, because a gold frame line crossing
+   * the ring would pass as "grain" and let any speckled patch through; not the
+   * median either, because scattered stars are a tail, not the bulk, and the
+   * median cannot see them.
+   */
+  const grainOf = (values: number[]) => {
+    if (values.length === 0) return 0;
+    values.sort((a, b) => a - b);
+    return values[Math.min(values.length - 1, Math.floor(values.length * GRAIN_QUANTILE))];
   };
 
   /**
+   * The grain of the real background the patch has to land in, tile by tile.
+   * One grain for the whole ring would be decided by whichever tile the gold
+   * frame crosses; the median over the tiles describes the plain background
+   * the mark actually sits on.
+   */
+  const targetGrain = (() => {
+    const tile = 8;
+    const grains: number[] = [];
+    for (let y = region.y0; y < region.y1; y += tile) {
+      for (let x = region.x0; x < region.x1; x += tile) {
+        const values: number[] = [];
+        for (let ty = y; ty < Math.min(y + tile, region.y1); ty += 1) {
+          for (let tx = x; tx < Math.min(x + tile, region.x1); tx += 1) {
+            if (mask[ty * W + tx]) continue;
+            for (let c = 0; c < 3; c += 1) values.push(Math.abs(detail(tx, ty, c)));
+          }
+        }
+        if (values.length >= tile * 3) grains.push(grainOf(values));
+      }
+    }
+    return grains.length === 0 ? 0 : median(grains);
+  })();
+
+  /**
    * How well a candidate matches the detail of the real background still
-   * visible around the mask.
+   * visible around the mask. A source that would copy part of the mark itself
+   * is refused outright.
    */
   const judge = (source: Source): { score: number } | null => {
     const residuals: number[] = [];
     for (let y = region.y0; y < region.y1; y += 1) {
       for (let x = region.x0; x < region.x1; x += 1) {
-        if (mask[y * W + x]) continue;
         const from = at(source, x, y);
         if (from.x < 0 || from.y < 0 || from.x >= W || from.y >= H) return null;
         if (mask[from.y * W + from.x]) return null;
+        if (mask[y * W + x]) continue;
         for (let c = 0; c < 3; c += 1)
           residuals.push(Math.abs(detail(from.x, from.y, c) - detail(x, y, c)));
       }
@@ -639,68 +753,146 @@ export function fillFromTexture(
     return { score: residuals[Math.floor(residuals.length / 2)] };
   };
 
-  let best: { source: Source; score: number; method: FillMethod } | null = null;
-  /** The closest match seen, accepted or not, so a refusal can be reported. */
-  let nearest: number | null = null;
+  /** Candidates that can be pasted at all, best detail match first. */
+  const rank = (sources: Source[]) =>
+    sources
+      .map((source) => ({ source, judged: judge(source) }))
+      .filter(
+        (entry): entry is { source: Source; judged: { score: number } } => entry.judged !== null,
+      )
+      .sort((a, b) => a.judged.score - b.judged.score);
+
   // The mirror, allowed a few pixels of play: a deck is symmetrical by design
   // but rarely to the pixel, and the ornament under the mark is only ever
   // recoverable from its twin on the other side.
-  let mirror: { source: Source; score: number } | null = null;
+  const mirrors: Source[] = [];
   for (let dy = -options.align; dy <= options.align; dy += 1) {
     for (let dx = -options.align; dx <= options.align; dx += 1) {
-      const source = { dx, dy, mirror: true };
-      const judged = judge(source);
-      if (judged && (!mirror || judged.score < mirror.score)) mirror = { source, ...judged };
+      mirrors.push({ dx, dy, mirror: true });
     }
   }
-  if (mirror) nearest = mirror.score;
-  if (mirror && mirror.score <= options.accept) best = { ...mirror, method: "mirror" };
-
-  if (!best) {
-    // The neighbourhood of the mark, a few mark-widths left and above it.
-    const w = box.x1 - box.x0;
-    const h = box.y1 - box.y0;
-    for (let dy = -4 * h; dy <= 2 * h; dy += options.step) {
-      for (let dx = -6 * w; dx <= 2 * w; dx += options.step) {
-        if (Math.abs(dx) < w / 2 && Math.abs(dy) < h / 2) continue;
-        const judged = judge({ dx, dy, mirror: false });
-        if (!judged) continue;
-        if (nearest === null || judged.score < nearest) nearest = judged.score;
-        if (!best || judged.score < best.score)
-          best = { source: { dx, dy, mirror: false }, ...judged, method: "patch" };
+  // The neighbourhood of the mark, a few mark-widths left and above it. The
+  // grid is swept coarsely first and then refined around the best few, which
+  // is what keeps a slide's removal near a second instead of half a minute.
+  const w = box.x1 - box.x0;
+  const h = box.y1 - box.y0;
+  const inNeighbourhood = (dx: number, dy: number) =>
+    !(Math.abs(dx) < w / 2 && Math.abs(dy) < h / 2);
+  const coarse: Source[] = [];
+  for (let dy = -4 * h; dy <= 2 * h; dy += options.step * options.coarse) {
+    for (let dx = -6 * w; dx <= 2 * w; dx += options.step * options.coarse) {
+      if (inNeighbourhood(dx, dy)) coarse.push({ dx, dy, mirror: false });
+    }
+  }
+  const patches: Source[] = [];
+  const seen = new Set<string>();
+  const addPatch = (dx: number, dy: number) => {
+    const key = `${dx},${dy}`;
+    if (seen.has(key) || !inNeighbourhood(dx, dy)) return;
+    seen.add(key);
+    patches.push({ dx, dy, mirror: false });
+  };
+  for (const { source } of rank(coarse).slice(0, options.refine)) {
+    const reach = options.step * options.coarse;
+    for (let dy = source.dy - reach; dy <= source.dy + reach; dy += options.step) {
+      for (let dx = source.dx - reach; dx <= source.dx + reach; dx += options.step) {
+        addPatch(dx, dy);
       }
     }
-    if (best && best.score > options.accept) best = null;
   }
 
-  if (!best) {
-    const harmonic = fillMasked(image, mask);
+  const alpha = feather(mask, W, H, options.feather);
+
+  /** What the slide looks like with this candidate pasted in. */
+  const paste = (source: Source): RawImage => {
+    const from = (x: number, y: number, c: number): number | null => {
+      const point = at(source, x, y);
+      if (point.x < 0 || point.y < 0 || point.x >= W || point.y >= H) return null;
+      return read(point.x, point.y, c);
+    };
+    const out = Uint8Array.from(image.data);
+    const membrane = solveMembrane(image, mask, from, box, options.feather);
+    for (let y = box.y0; y < box.y1; y += 1) {
+      for (let x = box.x0; x < box.x1; x += 1) {
+        const weight = alpha[y * W + x];
+        if (!weight) continue;
+        for (let c = 0; c < Math.min(3, channels); c += 1) {
+          const pasted = from(x, y, c);
+          if (pasted === null) continue;
+          const index = ((y - box.y0) * (box.x1 - box.x0) + (x - box.x0)) * 3 + c;
+          const mixed = read(x, y, c) * (1 - weight) + (pasted + membrane[index]) * weight;
+          out[(y * W + x) * channels + c] = Math.max(0, Math.min(255, Math.round(mixed)));
+        }
+      }
+    }
+    return { ...image, data: out };
+  };
+
+  /**
+   * The grain a candidate would lay over the mark: measured on the pixels it
+   * would really cover, at the place it reads them from. The membrane added
+   * later is a smooth field, so it moves this hardly at all, and skipping it
+   * here keeps the search cheap.
+   */
+  const candidateGrain = (source: Source) => {
+    const values: number[] = [];
+    for (let y = box.y0; y < box.y1; y += 1) {
+      for (let x = box.x0; x < box.x1; x += 1) {
+        if (!mask[y * W + x]) continue;
+        const point = at(source, x, y);
+        if (point.x < 0 || point.y < 0 || point.x >= W || point.y >= H) continue;
+        for (let c = 0; c < 3; c += 1) values.push(Math.abs(detail(point.x, point.y, c)));
+      }
+    }
+    return grainOf(values);
+  };
+
+  /** The same measure on a finished image, for the smooth fill. */
+  const filledGrain = (filled: RawImage) => {
+    const values: number[] = [];
+    for (let y = box.y0; y < box.y1; y += 1) {
+      for (let x = box.x0; x < box.x1; x += 1) {
+        if (!mask[y * W + x]) continue;
+        for (let c = 0; c < 3; c += 1) values.push(Math.abs(detailIn(filled, x, y, c)));
+      }
+    }
+    return grainOf(values);
+  };
+
+  const tooDifferent = (grain: number) =>
+    grain > targetGrain * options.grainRatio + options.grainFloor ||
+    targetGrain > grain * options.grainRatio + options.grainFloor;
+
+  /** The closest match seen, accepted or not, so a refusal can be reported. */
+  let nearest: number | null = null;
+  /** The best-matching candidate refused for its grain, as a last resort. */
+  let refused: { source: Source; score: number; method: FillMethod } | null = null;
+
+  for (const [method, sources] of [
+    ["mirror", mirrors],
+    ["patch", patches],
+  ] as Array<[FillMethod, Source[]]>) {
+    const ranked = rank(sources);
+    if (ranked.length > 0 && (nearest === null || ranked[0].judged.score < nearest)) {
+      nearest = ranked[0].judged.score;
+    }
+    for (const { source, judged } of ranked.slice(0, options.tries)) {
+      if (judged.score > options.accept) break;
+      if (!tooDifferent(candidateGrain(source))) {
+        return { image: paste(source), method, score: judged.score };
+      }
+      if (!refused) refused = { source, score: judged.score, method };
+    }
+  }
+
+  // Nothing comparable was found. The smooth fill invents no texture at all,
+  // which is better than pasting a texture the corner never had; it is only
+  // passed over when it would itself be far flatter than the background.
+  const harmonic = fillMasked(image, mask);
+  if (refused === null || !tooDifferent(filledGrain(harmonic))) {
     return { image: harmonic, method: "harmonic", score: nearest ?? Infinity };
   }
-
-  const source = best.source;
-  const patch = (x: number, y: number, c: number): number | null => {
-    const from = at(source, x, y);
-    if (from.x < 0 || from.y < 0 || from.x >= W || from.y >= H) return null;
-    return read(from.x, from.y, c);
-  };
-  const out = Uint8Array.from(image.data);
-  const alpha = feather(mask, W, H, options.feather);
-  const membrane = solveMembrane(image, mask, patch, box, options.feather);
-  for (let y = box.y0; y < box.y1; y += 1) {
-    for (let x = box.x0; x < box.x1; x += 1) {
-      const weight = alpha[y * W + x];
-      if (!weight) continue;
-      for (let c = 0; c < Math.min(3, channels); c += 1) {
-        const pasted = patch(x, y, c);
-        if (pasted === null) continue;
-        const index = ((y - box.y0) * (box.x1 - box.x0) + (x - box.x0)) * 3 + c;
-        const mixed = read(x, y, c) * (1 - weight) + (pasted + membrane[index]) * weight;
-        out[(y * W + x) * channels + c] = Math.max(0, Math.min(255, Math.round(mixed)));
-      }
-    }
-  }
-  return { image: { ...image, data: out }, method: best.method, score: best.score };
+  return { image: paste(refused.source), method: refused.method, score: refused.score };
 }
 
 /**
