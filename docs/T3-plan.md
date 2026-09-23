@@ -369,12 +369,16 @@ and 0.862, overall 0.693) but cost slide 1 (0.781); shrink-only is the
 accepted trade-off. The export uses refined boxes; blocks that kept Gemini's
 box are flagged for the Review page in T7.
 
-**Bias correction is not applied.** The numbers above are from one model at
-one resolution. After the full comparison, measure the vertical shift, the y
-slope and the width ratio per model and per resolution. Only add a
-correction in code if the direction and magnitude are consistent across
-those runs, only enable it when there are enough matched pairs to support
-it, and re-verify it with `test:detect` before keeping it.
+**Bias correction is not applied, and stays that way (measured 2026-09-23).**
+The full comparison gave, over 43 to 44 matched pairs per combination:
+3.5 Flash-Lite at default resolution -0.46% shift, y slope 0.996, width
+x1.012; the same model at high -1.24%, 0.983, x0.993; 3.1 Flash-Lite at
+either resolution -1.03%, 0.980, x1.127. The width ratio disagrees in
+direction, the shift varies almost threefold with a per-pair spread as large
+as itself, and the 0.974 slope measured on one model is not reproduced. The
+condition in this section is therefore not met. Height is the one consistent
+term (x0.87 to x0.93, boxes too short in every run); shrink-only refinement
+cannot fix it, so it belongs to the Review page in T7.
 
 ### 7.9 NotebookLM watermark (owner decision 2026-09-22)
 
