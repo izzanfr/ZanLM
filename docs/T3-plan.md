@@ -303,10 +303,14 @@ The fonts are registered with `@napi-rs/canvas` from `C:\Windows\Fonts`, so text
 1. **Height limit:** the box height in points, divided by `lines × lineFactor(face)`. The line factor comes from the font's real ascent and descent, measured once per face.
 2. **Width limit:** the largest size at which the widest line, measured with that face, weight and style, is at most the box width minus the 15% safety margin.
 3. **Size:** the smaller of the two limits, rounded down to 0.5 pt, with a floor of 6 pt. Anything that needs the floor is flagged.
-4. **Box:** the text box gets the detected height and a width of at least the measured width × 1.15. It is anchored by alignment: left keeps `xmin`, center keeps the center, right keeps `xmax`, and it is clipped to the slide.
-5. **Text box settings:** inset 0, anchor top, autofit off, wrap on, and the line breaks from the detection. Because every line fits with margin, wrap never adds a line.
+4. **Height is computed, never taken from the detection** (owner decision 2026-09-23). The comparison found the one box error that every model and resolution agrees on: boxes come back 7 to 13% too short (`ratio 0.866 to 0.928` over 43 to 44 pairs per combination, HANDOFF.md). A box that is too short clips its own text in PowerPoint, so the height is `size × lines × lineFactor(face) + 2 × padding`, with the same line factor from real font metrics that step 1 uses and a padding of 0.1 × size. The detected box is used for **position and width only**, and the box is anchored at its **top** edge (`ymin`), because that edge is the one the model places well; the height then grows downwards. Only the height limit in step 1 still reads the detected height, so a box that is far too short cannot inflate the font size.
+5. **Box:** width is at least the measured width × 1.15. It is anchored by alignment: left keeps `xmin`, center keeps the center, right keeps `xmax`, and it is clipped to the slide. A box whose computed height would run past the bottom of the slide is moved up, never shrunk.
+6. **Text box settings:** inset 0, anchor top, autofit off, wrap on, and the line breaks from the detection. Because every line fits with margin, wrap never adds a line.
 
-Tests cover a long single line, a multi-line block, center and right alignment near the slide edge, the 6 pt floor, and Indonesian text with diacritics.
+Tests cover a long single line, a multi-line block, center and right alignment near the slide edge, the 6 pt floor, and Indonesian text with diacritics. Two more cover the height rule, and they are the ones that must never be relaxed:
+
+- **Text is never clipped:** for every ground-truth block, and for generated blocks of 1 to 6 lines at sizes from the 6 pt floor upwards, the laid-out height is at least `lines × size × lineFactor(face)`, measured with the same font metrics PowerPoint uses. The test fails if a box is shorter than its own text.
+- **A detected box that is far too short does not clip:** the same blocks are laid out with their detected height cut to 70% (the worst ratio measured), and the text still fits, because the height is computed from the font size. The top edge stays where the detection put it.
 
 ### 7.5 Names, notes, hidden and mixed slides
 
